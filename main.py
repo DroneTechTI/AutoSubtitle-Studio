@@ -6,12 +6,12 @@ import sys
 import logging
 from pathlib import Path
 
-# Setup logging
+# Setup logging with UTF-8 encoding to handle special characters
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('subtitle_generator.log'),
+        logging.FileHandler('subtitle_generator.log', encoding='utf-8'),
         logging.StreamHandler(sys.stdout)
     ]
 )

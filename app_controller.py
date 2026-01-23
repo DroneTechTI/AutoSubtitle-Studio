@@ -27,10 +27,11 @@ class AppController:
         self.current_whisper_model = None
         
         # Initialize OpenSubtitles service
+        api_key = getattr(config, 'OPENSUBTITLES_API_KEY', None)
         self.opensubtitles = OpenSubtitlesService(
             api_url=config.OPENSUBTITLES_API_URL,
             user_agent=config.OPENSUBTITLES_USER_AGENT,
-            api_key=None  # Users can add their own API key if needed
+            api_key=api_key
         )
         
         logger.info("AppController initialized")
@@ -137,9 +138,9 @@ class AppController:
             video_hash = self.opensubtitles.calculate_video_hash(video_path)
             
             if video_hash:
-                log(f"✓ Hash calcolato: {video_hash}")
+                log(f"[OK] Hash calcolato: {video_hash}")
             else:
-                log("⚠ Impossibile calcolare hash, ricerca per nome file")
+                log("[!] Impossibile calcolare hash, ricerca per nome file")
             
             # Search for subtitles
             log("Ricerca su OpenSubtitles.com...")
@@ -150,11 +151,24 @@ class AppController:
             )
             
             if not results:
-                log("✗ Nessun sottotitolo trovato")
-                log("Suggerimento: prova a cercare manualmente su opensubtitles.com")
+                log("[X] Nessun sottotitolo trovato")
+                log("")
+                log("=== NOTA IMPORTANTE ===")
+                log("OpenSubtitles.com richiede una API KEY per il download automatico.")
+                log("")
+                log("Come ottenere una API KEY (GRATUITA):")
+                log("1. Vai su https://www.opensubtitles.com")
+                log("2. Crea un account gratuito")
+                log("3. Vai su: Profilo > API")
+                log("4. Genera una API Key")
+                log("5. Apri il file 'config.py'")
+                log("6. Cerca 'OPENSUBTITLES_API_KEY'")
+                log("7. Inserisci la tua API key")
+                log("")
+                log("Suggerimento: cerca manualmente su opensubtitles.com")
                 return None
             
-            log(f"✓ Trovati {len(results)} risultati")
+            log(f"[OK] Trovati {len(results)} risultati")
             
             # Get best match
             best_match = results[0]
@@ -188,12 +202,18 @@ class AppController:
                 f.write("Per scaricare:\n")
                 f.write("Visita https://www.opensubtitles.com e cerca questo sottotitolo\n")
             
-            log(f"✓ Informazioni salvate in: {output_path}")
-            log("=== NOTA IMPORTANTE ===")
-            log("Per scaricare sottotitoli da OpenSubtitles è necessario:")
-            log("1. Creare un account gratuito su opensubtitles.com")
-            log("2. Ottenere una API key dal proprio profilo")
-            log("3. Configurare la API key nell'applicazione")
+            log(f"[OK] Informazioni salvate in: {output_path}")
+            log("")
+            log("=== COME CONFIGURARE OPENSUBTITLES ===")
+            log("1. Registrati gratis su: https://www.opensubtitles.com")
+            log("2. Vai su: Profilo > API")
+            log("3. Genera una API Key")
+            log("4. Apri il file: config.py")
+            log("5. Trova la riga: OPENSUBTITLES_API_KEY = None")
+            log("6. Modificala in: OPENSUBTITLES_API_KEY = 'tua_api_key_qui'")
+            log("7. Salva e riavvia l'applicazione")
+            log("")
+            log("Dopo la configurazione potrai scaricare sottotitoli automaticamente!")
             
             return output_path
             

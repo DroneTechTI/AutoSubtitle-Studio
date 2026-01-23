@@ -35,6 +35,14 @@ DEFAULT_SUBTITLE_FORMAT = "srt"
 OPENSUBTITLES_API_URL = "https://api.opensubtitles.com/api/v1"
 OPENSUBTITLES_USER_AGENT = "SubtitleGenerator v1.0"
 
+# OpenSubtitles API Key (required for downloads)
+# Get your free API key from: https://www.opensubtitles.com/consumers
+# 1. Create a free account on opensubtitles.com
+# 2. Go to your profile -> API
+# 3. Generate a new API key
+# 4. Paste it here (replace None with your key in quotes)
+OPENSUBTITLES_API_KEY = None  # Example: "your_api_key_here"
+
 # Supported languages (ISO 639-1 codes)
 LANGUAGES = {
     "it": "Italiano",
