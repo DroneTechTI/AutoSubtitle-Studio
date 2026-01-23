@@ -1,0 +1,12 @@
+{
+    "language": "it",
+    "model": "base",
+    "format": "srt",
+    "output_dir": "",
+    "last_videos": [],
+    "window_geometry": "900x700+26+26",
+    "theme": "default",
+    "auto_save": true,
+    "show_preview": true,
+    "translation_service": "google"
+}

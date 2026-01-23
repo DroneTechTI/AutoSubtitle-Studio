@@ -41,7 +41,7 @@ OPENSUBTITLES_USER_AGENT = "SubtitleGenerator v1.0"
 # 2. Go to your profile -> API
 # 3. Generate a new API key
 # 4. Paste it here (replace None with your key in quotes)
-OPENSUBTITLES_API_KEY = None  # Example: "your_api_key_here"
+OPENSUBTITLES_API_KEY = "87nT3L4PudQbZIf0T2aNaTfarnnkjyU5"  # Example: "your_api_key_here"
 
 # Supported languages (ISO 639-1 codes)
 LANGUAGES = {
