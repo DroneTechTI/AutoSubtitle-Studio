@@ -31,28 +31,40 @@ class AutoSync:
             import whisper
             
             logger.info("Detecting speech patterns in audio...")
+            logger.info("This may take 1-2 minutes for accurate analysis...")
             
-            # Load small model for quick analysis
-            model = whisper.load_model("tiny")
+            # Load base model for better accuracy (tiny was too imprecise)
+            model = whisper.load_model("base")
             
-            # Transcribe with timestamps
+            # Transcribe with timestamps and word-level timing
             result = model.transcribe(
                 str(audio_path),
                 task="transcribe",
                 language=None,
-                verbose=False
+                verbose=False,
+                word_timestamps=False  # Segment-level is more stable
             )
             
-            # Extract timestamps
+            # Extract timestamps with filtering
             speech_times = []
             for segment in result.get('segments', []):
-                speech_times.append({
-                    'start': segment['start'],
-                    'end': segment['end'],
-                    'text': segment['text']
-                })
+                # Filter out very short segments (likely noise)
+                duration = segment['end'] - segment['start']
+                if duration > 0.3:  # At least 0.3 seconds
+                    speech_times.append({
+                        'start': segment['start'],
+                        'end': segment['end'],
+                        'text': segment['text'].strip()
+                    })
             
-            logger.info(f"Detected {len(speech_times)} speech segments")
+            logger.info(f"Detected {len(speech_times)} speech segments (filtered)")
+            
+            # Log first few for debugging
+            if speech_times:
+                logger.info(f"First speech: {speech_times[0]['start']:.2f}s - '{speech_times[0]['text'][:30]}'")
+                if len(speech_times) > 1:
+                    logger.info(f"Second speech: {speech_times[1]['start']:.2f}s - '{speech_times[1]['text'][:30]}'")
+            
             return speech_times
             
         except Exception as e:
@@ -188,9 +200,10 @@ class AutoSync:
             logger.error(f"Error parsing subtitle times: {str(e)}")
             return []
     
-    def _find_best_offset(self, subtitle_times, speech_times, max_offset=10):
+    def _find_best_offset(self, subtitle_times, speech_times, max_offset=30):
         """
         Find best offset by comparing subtitle and speech patterns
+        Uses multiple methods for maximum accuracy
         
         Args:
             subtitle_times: List of subtitle timestamps
@@ -204,54 +217,102 @@ class AutoSync:
             if not subtitle_times or not speech_times:
                 return 0.0
             
-            # Sample first few segments for comparison
-            sample_size = min(10, len(subtitle_times), len(speech_times))
+            logger.info(f"Analyzing {len(subtitle_times)} subtitle segments vs {len(speech_times)} speech segments")
             
-            sub_starts = [s['start'] for s in subtitle_times[:sample_size]]
-            speech_starts = [s['start'] for s in speech_times[:sample_size]]
+            # Use more segments for better accuracy
+            sample_size = min(20, len(subtitle_times), len(speech_times))
             
-            # Calculate gaps between segments
-            sub_gaps = [sub_starts[i+1] - sub_starts[i] for i in range(len(sub_starts)-1)]
-            speech_gaps = [speech_starts[i+1] - speech_starts[i] for i in range(len(speech_starts)-1)]
+            sub_starts = np.array([s['start'] for s in subtitle_times[:sample_size]])
+            speech_starts = np.array([s['start'] for s in speech_times[:sample_size]])
             
-            # Try different offsets and find best match
-            best_offset = 0.0
+            # METHOD 1: Direct alignment of first segments
+            first_sub = subtitle_times[0]['start']
+            first_speech = speech_times[0]['start']
+            offset_method1 = first_speech - first_sub
+            
+            logger.info(f"Method 1 (first segment): offset = {offset_method1:.2f}s")
+            
+            # METHOD 2: Cross-correlation with multiple samples
+            best_offset = offset_method1
             best_score = float('inf')
             
-            # Try offsets from -max_offset to +max_offset
-            for offset in np.arange(-max_offset, max_offset, 0.1):
-                # Calculate score for this offset
+            # Expand search range if first method suggests large offset
+            search_range = max(max_offset, abs(offset_method1) + 10)
+            
+            # Try offsets with higher resolution
+            test_offsets = np.arange(-search_range, search_range, 0.05)
+            
+            for offset in test_offsets:
+                # Calculate alignment score
                 score = 0
+                matched = 0
                 
-                for i, sub_start in enumerate(sub_starts[:min(5, len(sub_starts))]):
+                for sub_start in sub_starts:
                     adjusted_sub = sub_start + offset
                     
                     # Find closest speech segment
-                    if speech_starts:
-                        closest_speech = min(speech_starts, key=lambda x: abs(x - adjusted_sub))
-                        diff = abs(adjusted_sub - closest_speech)
-                        score += diff
+                    if len(speech_starts) > 0:
+                        distances = np.abs(speech_starts - adjusted_sub)
+                        min_dist = np.min(distances)
+                        
+                        # Only count if within 2 seconds
+                        if min_dist < 2.0:
+                            score += min_dist
+                            matched += 1
+                
+                # Penalize if too few matches
+                if matched < sample_size * 0.5:
+                    score += 1000
+                else:
+                    score = score / matched  # Average distance
                 
                 if score < best_score:
                     best_score = score
                     best_offset = offset
             
-            # Refine with gap analysis if possible
-            if len(sub_gaps) > 0 and len(speech_gaps) > 0:
-                # Compare gap patterns
-                avg_sub_gap = np.mean(sub_gaps)
-                avg_speech_gap = np.mean(speech_gaps)
-                
-                # If gaps are very different, might indicate different pacing
-                # Adjust offset based on first segment alignment
-                if abs(avg_sub_gap - avg_speech_gap) < 1.0:
-                    # Gaps are similar, use first segment alignment
-                    first_sub = subtitle_times[0]['start']
-                    first_speech = speech_times[0]['start']
-                    best_offset = first_speech - first_sub
+            logger.info(f"Method 2 (cross-correlation): offset = {best_offset:.2f}s, score = {best_score:.3f}")
             
-            # Round to nearest 0.1 second
-            best_offset = round(best_offset, 1)
+            # METHOD 3: Gap pattern analysis
+            if len(sub_starts) > 3 and len(speech_starts) > 3:
+                sub_gaps = np.diff(sub_starts)
+                speech_gaps = np.diff(speech_starts)
+                
+                # Use correlation of gaps to validate
+                min_len = min(len(sub_gaps), len(speech_gaps))
+                if min_len > 2:
+                    # Normalize gaps for comparison
+                    sub_gaps_norm = (sub_gaps[:min_len] - np.mean(sub_gaps[:min_len])) / (np.std(sub_gaps[:min_len]) + 1e-6)
+                    speech_gaps_norm = (speech_gaps[:min_len] - np.mean(speech_gaps[:min_len])) / (np.std(speech_gaps[:min_len]) + 1e-6)
+                    
+                    # Calculate correlation
+                    correlation = np.corrcoef(sub_gaps_norm, speech_gaps_norm)[0, 1]
+                    
+                    logger.info(f"Method 3 (gap correlation): {correlation:.3f}")
+                    
+                    # If correlation is good and method 2 score is good, trust it
+                    if correlation > 0.5 and best_score < 0.5:
+                        logger.info(f"High confidence in offset: {best_offset:.2f}s")
+                    elif correlation < 0.3:
+                        logger.warning("Low correlation - subtitles might not match audio")
+            
+            # METHOD 4: Validate with middle and end segments
+            if len(subtitle_times) > 10 and len(speech_times) > 10:
+                mid_sub = subtitle_times[len(subtitle_times)//2]['start']
+                mid_speech = speech_times[len(speech_times)//2]['start']
+                mid_offset = mid_speech - mid_sub
+                
+                logger.info(f"Method 4 (middle segment): offset = {mid_offset:.2f}s")
+                
+                # If middle offset is very different, average them
+                if abs(mid_offset - best_offset) > 5:
+                    logger.warning(f"Large discrepancy between start and middle offset")
+                    # Use weighted average (more weight to cross-correlation)
+                    best_offset = (best_offset * 0.7 + mid_offset * 0.3)
+            
+            # Round to nearest 0.05 second for precision
+            best_offset = round(best_offset * 20) / 20
+            
+            logger.info(f"FINAL OFFSET: {best_offset:.2f}s")
             
             return best_offset
             
