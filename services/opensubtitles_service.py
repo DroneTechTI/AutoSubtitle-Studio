@@ -247,6 +247,58 @@ class OpenSubtitlesService:
             logger.error(f"Error downloading subtitle: {str(e)}")
             raise
     
+    def try_direct_download(self, subtitle_info, output_path):
+        """
+        Try to download subtitle directly from attributes
+        
+        Args:
+            subtitle_info: Subtitle info from search results
+            output_path: Where to save the file
+        
+        Returns:
+            Path to downloaded file or None
+        """
+        try:
+            attrs = subtitle_info.get('attributes', {})
+            
+            # Try to get direct download URL
+            files = attrs.get('files', [])
+            if not files:
+                return None
+            
+            file_info = files[0]
+            file_id = file_info.get('file_id')
+            
+            if not file_id:
+                return None
+            
+            # Try to download with API key if available
+            if self.api_key:
+                try:
+                    return self.download_subtitle(file_id, output_path)
+                except Exception as e:
+                    logger.debug(f"API download failed: {str(e)}")
+            
+            # If no API key or API download failed, try alternative method
+            # Get subtitle URL from attributes
+            url = attrs.get('url')
+            if url:
+                logger.info(f"Trying direct download from: {url}")
+                
+                # Create a proper subtitle URL
+                # OpenSubtitles web format
+                web_url = f"https://www.opensubtitles.com/en/subtitles/{file_id}"
+                
+                logger.info(f"Direct download not available without API key")
+                logger.info(f"You can download manually from: {web_url}")
+                return None
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Direct download error: {str(e)}")
+            return None
+    
     def search_and_download(self, video_path, language="it", output_dir=None):
         """
         Search and download best matching subtitle

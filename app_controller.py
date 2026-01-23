@@ -181,33 +181,69 @@ class AppController:
             file_name = attrs.get('release', 'Unknown')
             log(f"Migliore corrispondenza: {file_name}")
             
-            # Download
-            log("Download in corso...")
+            # Determine output path
+            output_dir = config.OUTPUT_DIR
+            output_path = output_dir / f"{video_path.stem}.srt"
             
-            # Note: OpenSubtitles API requires authentication for downloads
-            # This is a simplified version - users may need to provide API key
-            log("⚠ NOTA: Il download da OpenSubtitles richiede un account API")
-            log("Per ora, ecco le informazioni del sottotitolo trovato:")
-            log(f"  - Nome: {file_name}")
-            log(f"  - Lingua: {attrs.get('language', 'N/A')}")
-            log(f"  - Downloads: {attrs.get('download_count', 'N/A')}")
+            # Try to download subtitle
+            log("Tentativo di download...")
+            
+            # Check if we have API key
+            if self.opensubtitles.api_key:
+                try:
+                    files = attrs.get('files', [])
+                    if files and files[0].get('file_id'):
+                        file_id = files[0]['file_id']
+                        result = self.opensubtitles.download_subtitle(file_id, output_path)
+                        log(f"[OK] Sottotitolo scaricato: {result}")
+                        return result
+                except Exception as e:
+                    log(f"[!] Errore download con API: {str(e)}")
+            
+            # No API key or download failed - provide manual instructions
             log("")
-            log("Per scaricare manualmente:")
-            log("1. Vai su https://www.opensubtitles.com")
-            log("2. Cerca il tuo video")
-            log(f"3. Cerca il sottotitolo: {file_name}")
+            log("=== DOWNLOAD MANUALE RICHIESTO ===")
+            log("")
+            log("Per scaricare automaticamente serve una API Key.")
+            log("Puoi scaricare manualmente in 30 secondi:")
+            log("")
             
-            # For now, we'll create a placeholder
-            output_path = config.OUTPUT_DIR / f"{video_path.stem}_info.txt"
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(f"Sottotitoli trovati per: {video_path.name}\n\n")
-                f.write(f"Nome: {file_name}\n")
+            # Get subtitle URL
+            subtitle_id = attrs.get('subtitle_id') or attrs.get('id')
+            if subtitle_id:
+                manual_url = f"https://www.opensubtitles.com/en/subtitleserve/sub/{subtitle_id}"
+                log(f"LINK DIRETTO: {manual_url}")
+                log("")
+                log("Oppure:")
+            
+            log(f"1. Vai su: https://www.opensubtitles.com")
+            log(f"2. Cerca: '{video_path.stem}'")
+            log(f"3. Trova sottotitolo: {file_name}")
+            log(f"4. Click Download")
+            log(f"5. Salva in: {output_dir}")
+            log("")
+            
+            # Save info to file
+            info_path = output_dir / f"{video_path.stem}_download_info.txt"
+            with open(info_path, 'w', encoding='utf-8') as f:
+                f.write(f"SOTTOTITOLI PER: {video_path.name}\n\n")
+                f.write(f"Trovato: {file_name}\n")
                 f.write(f"Lingua: {attrs.get('language', 'N/A')}\n")
                 f.write(f"Downloads: {attrs.get('download_count', 'N/A')}\n\n")
-                f.write("Per scaricare:\n")
-                f.write("Visita https://www.opensubtitles.com e cerca questo sottotitolo\n")
+                if subtitle_id:
+                    f.write(f"LINK DIRETTO:\n{manual_url}\n\n")
+                    f.write(f"Copia e incolla questo link nel browser per scaricare!\n\n")
+                f.write(f"RICERCA MANUALE:\n")
+                f.write(f"1. Vai su: https://www.opensubtitles.com\n")
+                f.write(f"2. Cerca: '{video_path.stem}'\n")
+                f.write(f"3. Scarica: {file_name}\n\n")
+                f.write(f"ALTERNATIVA - USA AUTO-GENERAZIONE:\n")
+                f.write(f"1. Riapri l'applicazione\n")
+                f.write(f"2. Seleziona 'Auto-Genera' (non 'Scarica')\n")
+                f.write(f"3. Nessuna API key necessaria\n")
+                f.write(f"4. Sottotitoli perfetti in 5-10 minuti!\n")
             
-            log(f"[OK] Informazioni salvate in: {output_path}")
+            log(f"[OK] Istruzioni salvate in: {info_path}")
             log("")
             log("=== COME CONFIGURARE OPENSUBTITLES ===")
             log("1. Registrati gratis su: https://www.opensubtitles.com")
