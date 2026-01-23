@@ -68,9 +68,18 @@ class VideoToolsWindow:
         ttk.Label(
             soft_frame,
             text="I sottotitoli vengono aggiunti al video come traccia separata.\n"
-                 "Puoi attivarli/disattivarli dal player video.",
+                 "Puoi attivarli/disattivarli dal player video.\n"
+                 "✓ Auto-sincronizzazione automatica prima dell'integrazione!",
             foreground='gray'
         ).pack(pady=5)
+        
+        # Auto-sync option
+        self.auto_sync_before_embed = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            soft_frame,
+            text="🤖 Sincronizza automaticamente prima di integrare",
+            variable=self.auto_sync_before_embed
+        ).pack(anchor=tk.W, padx=10, pady=5)
         
         ttk.Label(soft_frame, text="Lingua:").pack(anchor=tk.W, padx=10)
         self.soft_lang = tk.StringVar(value='ita')
@@ -181,13 +190,44 @@ class VideoToolsWindow:
         )
         sync_info.pack(pady=20)
         
+        # Auto-sync section
+        auto_sync_frame = ttk.LabelFrame(sync_frame, text="Auto-Sincronizzazione Intelligente", padding="10")
+        auto_sync_frame.pack(fill=tk.X, padx=10, pady=10)
+        
         ttk.Label(
-            sync_frame,
-            text="I sottotitoli sono sfasati?\nRegola il timing qui:",
+            auto_sync_frame,
+            text="Sincronizza automaticamente analizzando l'audio del video.\n"
+                 "L'AI rileva le voci e calcola l'offset ottimale.",
             foreground='gray'
+        ).pack(pady=5)
+        
+        ttk.Button(
+            auto_sync_frame,
+            text="🤖 Auto-Sincronizza (Consigliato)",
+            command=self._auto_sync_subtitles,
+            width=35
         ).pack(pady=10)
         
-        offset_frame = ttk.Frame(sync_frame)
+        ttk.Label(
+            auto_sync_frame,
+            text="✓ Usa AI per rilevare pattern vocali\n✓ Calcola offset automaticamente\n✓ Precisione al decimo di secondo",
+            foreground='green',
+            font=('Arial', 9)
+        ).pack()
+        
+        ttk.Separator(sync_frame, orient='horizontal').pack(fill=tk.X, padx=10, pady=15)
+        
+        # Manual sync section
+        manual_sync_frame = ttk.LabelFrame(sync_frame, text="Sincronizzazione Manuale", padding="10")
+        manual_sync_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        ttk.Label(
+            manual_sync_frame,
+            text="Conosci già l'offset? Inseriscilo manualmente:",
+            foreground='gray'
+        ).pack(pady=5)
+        
+        offset_frame = ttk.Frame(manual_sync_frame)
         offset_frame.pack(pady=10)
         
         ttk.Label(offset_frame, text="Offset (secondi):").pack(side=tk.LEFT, padx=5)
@@ -202,18 +242,18 @@ class VideoToolsWindow:
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Label(
-            sync_frame,
+            manual_sync_frame,
             text="Positivo = ritarda | Negativo = anticipa",
             foreground='gray',
             font=('Arial', 9)
         ).pack(pady=5)
         
         ttk.Button(
-            sync_frame,
-            text="⏱ Sincronizza",
+            manual_sync_frame,
+            text="⏱ Applica Offset Manuale",
             command=self._sync_subtitles,
             width=30
-        ).pack(pady=20)
+        ).pack(pady=10)
         
         # Tab 4: Video Info
         info_frame = ttk.Frame(notebook)
@@ -277,26 +317,60 @@ class VideoToolsWindow:
         
         self.processing = True
         self.progress_bar.start(10)
-        self.status_label.config(text="Integrazione sottotitoli soft in corso...", foreground='blue')
         
         def process():
             try:
                 from utils.video_processor import VideoProcessor
-                processor = VideoProcessor()
+                from utils.auto_sync import AutoSync
+                import tempfile
                 
+                subtitle_path = self.subtitle_path.get()
+                
+                # Auto-sync if enabled
+                if self.auto_sync_before_embed.get():
+                    self.status_label.config(text="🤖 Auto-sincronizzazione in corso...", foreground='blue')
+                    
+                    try:
+                        auto_sync = AutoSync()
+                        synced_path, offset = auto_sync.auto_sync_subtitles(
+                            subtitle_path,
+                            self.video_path.get()
+                        )
+                        
+                        if abs(offset) > 0.1:
+                            self.status_label.config(
+                                text=f"✓ Sincronizzati (offset: {offset:.1f}s). Integrazione...", 
+                                foreground='blue'
+                            )
+                            subtitle_path = str(synced_path)
+                        else:
+                            self.status_label.config(text="✓ Già sincronizzati. Integrazione...", foreground='blue')
+                            
+                    except Exception as e:
+                        logger.warning(f"Auto-sync failed, proceeding without: {str(e)}")
+                        self.status_label.config(text="⚠ Auto-sync fallito, continuo senza. Integrazione...", foreground='orange')
+                
+                else:
+                    self.status_label.config(text="Integrazione sottotitoli soft in corso...", foreground='blue')
+                
+                # Embed subtitles
+                processor = VideoProcessor()
                 result = processor.embed_subtitles_soft(
                     self.video_path.get(),
-                    self.subtitle_path.get(),
+                    subtitle_path,
                     language=self.soft_lang.get()
                 )
                 
                 self.progress_bar.stop()
                 self.status_label.config(text="✓ Completato!", foreground='green')
-                messagebox.showinfo(
-                    "Successo",
-                    f"Sottotitoli integrati con successo!\n\n{result}\n\n"
-                    f"Puoi attivarli/disattivarli dal player video."
-                )
+                
+                message = f"Sottotitoli integrati con successo!\n\n{result}\n\n"
+                message += "Puoi attivarli/disattivarli dal player video."
+                
+                if self.auto_sync_before_embed.get() and abs(offset) > 0.1:
+                    message += f"\n\n✓ Auto-sincronizzati (offset: {offset:.1f}s)"
+                
+                messagebox.showinfo("Successo", message)
                 
             except Exception as e:
                 self.progress_bar.stop()
@@ -388,8 +462,53 @@ class VideoToolsWindow:
         
         threading.Thread(target=process, daemon=True).start()
     
+    def _auto_sync_subtitles(self):
+        """Auto-sync subtitles with video"""
+        if not self._validate_files():
+            return
+        
+        self.processing = True
+        self.progress_bar.start(10)
+        self.status_label.config(text="🤖 Analisi audio e sincronizzazione automatica...", foreground='blue')
+        
+        def process():
+            try:
+                from utils.auto_sync import AutoSync
+                
+                auto_sync = AutoSync()
+                result, offset = auto_sync.auto_sync_subtitles(
+                    self.subtitle_path.get(),
+                    self.video_path.get()
+                )
+                
+                self.progress_bar.stop()
+                self.status_label.config(text="✓ Auto-sincronizzati!", foreground='green')
+                
+                message = f"Sottotitoli sincronizzati automaticamente!\n\n"
+                message += f"File: {result}\n"
+                message += f"Offset applicato: {offset:.1f} secondi\n\n"
+                
+                if abs(offset) < 0.1:
+                    message += "✓ I sottotitoli erano già perfettamente sincronizzati!"
+                elif offset > 0:
+                    message += f"✓ Ritardati di {offset:.1f}s per sincronizzarli"
+                else:
+                    message += f"✓ Anticipati di {abs(offset):.1f}s per sincronizzarli"
+                
+                messagebox.showinfo("Successo", message)
+                self.subtitle_path.set(str(result))
+                
+            except Exception as e:
+                self.progress_bar.stop()
+                self.status_label.config(text=f"✗ Errore: {str(e)}", foreground='red')
+                messagebox.showerror("Errore", f"Impossibile auto-sincronizzare:\n{str(e)}")
+            finally:
+                self.processing = False
+        
+        threading.Thread(target=process, daemon=True).start()
+    
     def _sync_subtitles(self):
-        """Sync subtitle timing"""
+        """Sync subtitle timing manually"""
         if not self.subtitle_path.get():
             messagebox.showwarning("Attenzione", "Seleziona un file sottotitoli!")
             return

@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 try:
     from gui.batch_processor import BatchProcessorWindow
     from gui.preview_window import SubtitlePreviewWindow
+    from gui.video_tools_window import VideoToolsWindow
     from utils.preferences_manager import PreferencesManager
     from services.translation_service import TranslationService
 except ImportError:
@@ -272,6 +273,13 @@ class SubtitleGeneratorGUI:
             width=15
         ).pack(side=tk.LEFT, padx=5)
         
+        ttk.Button(
+            buttons_frame,
+            text="🎬 Integra Video",
+            command=self._open_video_tools,
+            width=15
+        ).pack(side=tk.LEFT, padx=5)
+        
         # Second row of buttons
         buttons_frame2 = ttk.Frame(main_frame)
         buttons_frame2.grid(row=11, column=0, columnspan=3, pady=5)
@@ -454,6 +462,14 @@ class SubtitleGeneratorGUI:
         except Exception as e:
             logger.error(f"Error opening batch processor: {str(e)}")
             messagebox.showerror("Errore", f"Impossibile aprire elaborazione batch:\n{str(e)}")
+    
+    def _open_video_tools(self):
+        """Open video tools window"""
+        try:
+            VideoToolsWindow(self.root, self.controller)
+        except Exception as e:
+            logger.error(f"Error opening video tools: {str(e)}")
+            messagebox.showerror("Errore", f"Impossibile aprire strumenti video:\n{str(e)}")
     
     def _open_preview(self):
         """Open subtitle preview window"""
