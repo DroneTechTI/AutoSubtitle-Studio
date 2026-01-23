@@ -3,7 +3,9 @@
     "model": "base",
     "format": "srt",
     "output_dir": "",
-    "last_videos": [],
+    "last_videos": [
+        "C:/Users/phoenix87/Downloads/Greys Anatomy S22E07.mp4"
+    ],
     "window_geometry": "900x700+26+26",
     "theme": "default",
     "auto_save": true,

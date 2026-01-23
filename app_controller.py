@@ -142,10 +142,15 @@ class AppController:
             else:
                 log("[!] Impossibile calcolare hash, ricerca per nome file")
             
-            # Search for subtitles
+            # Extract search query from filename
+            query = video_path.stem
+            
+            # Search for subtitles with multiple strategies
             log("Ricerca su OpenSubtitles.com...")
+            log(f"Termine di ricerca: '{query}'")
             results = self.opensubtitles.search_subtitles(
                 video_path=video_path,
+                query=query,
                 language=language,
                 video_hash=video_hash
             )

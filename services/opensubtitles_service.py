@@ -79,31 +79,70 @@ class OpenSubtitlesService:
             List of subtitle results
         """
         try:
-            search_params = {
-                'languages': language
-            }
-            
             # Calculate hash if video path provided
             if video_path and not video_hash:
                 video_path = Path(video_path)
                 video_hash = self.calculate_video_hash(video_path)
                 file_size = video_path.stat().st_size
+                
+                # Extract query from filename if not provided
+                if not query:
+                    query = self._extract_query_from_filename(video_path.stem)
             
-            if video_hash:
-                search_params['moviehash'] = video_hash
+            # Try multiple search strategies
+            all_results = []
             
-            if file_size:
-                search_params['moviebytesize'] = str(file_size)
+            # Strategy 1: Search by hash (most accurate)
+            if video_hash and file_size:
+                search_params = {
+                    'languages': language,
+                    'moviehash': video_hash,
+                    'moviebytesize': str(file_size)
+                }
+                logger.info(f"Search #1: By hash - {search_params}")
+                results = self._do_search(search_params)
+                if results:
+                    logger.info(f"Found {len(results)} results by hash")
+                    return results
+                all_results.extend(results)
             
+            # Strategy 2: Search by query (movie/series name)
             if query:
-                search_params['query'] = query
+                search_params = {
+                    'languages': language,
+                    'query': query
+                }
+                logger.info(f"Search #2: By query - {search_params}")
+                results = self._do_search(search_params)
+                if results:
+                    logger.info(f"Found {len(results)} results by query")
+                    return results
+                all_results.extend(results)
             
-            logger.info(f"Searching subtitles on OpenSubtitles: {search_params}")
+            # Strategy 3: Search with simplified query (remove episode info)
+            if query and any(x in query.lower() for x in ['s0', 's1', 's2', 'e0', 'e1', 'e2']):
+                simplified = self._simplify_series_name(query)
+                search_params = {
+                    'languages': language,
+                    'query': simplified
+                }
+                logger.info(f"Search #3: By simplified query - {search_params}")
+                results = self._do_search(search_params)
+                if results:
+                    logger.info(f"Found {len(results)} results by simplified query")
+                    return results
+                all_results.extend(results)
             
-            # Note: OpenSubtitles API v1 requires authentication
-            # For now, we'll implement a basic search
-            # Users may need to provide their own API key
-            
+            logger.info(f"Total results found: {len(all_results)}")
+            return all_results
+                
+        except Exception as e:
+            logger.error(f"Error searching subtitles: {str(e)}")
+            return []
+    
+    def _do_search(self, search_params):
+        """Execute search request"""
+        try:
             response = self.session.get(
                 f"{self.api_url}/subtitles",
                 params=search_params,
@@ -112,16 +151,56 @@ class OpenSubtitlesService:
             
             if response.status_code == 200:
                 data = response.json()
-                results = data.get('data', [])
-                logger.info(f"Found {len(results)} subtitle results")
-                return results
+                return data.get('data', [])
             else:
-                logger.warning(f"OpenSubtitles search failed: {response.status_code}")
+                logger.debug(f"Search failed with status: {response.status_code}")
                 return []
-                
         except Exception as e:
-            logger.error(f"Error searching subtitles: {str(e)}")
+            logger.debug(f"Search request error: {str(e)}")
             return []
+    
+    def _extract_query_from_filename(self, filename):
+        """Extract search query from video filename"""
+        import re
+        
+        # Remove common patterns
+        query = filename
+        
+        # Remove year in parentheses or brackets
+        query = re.sub(r'[\(\[]?\d{4}[\)\]]?', '', query)
+        
+        # Remove quality markers
+        query = re.sub(r'\b(1080p|720p|480p|2160p|4K|HDR|BluRay|WEB-?DL|WEBRip|DVDRip|BRRip)\b', '', query, flags=re.IGNORECASE)
+        
+        # Remove codec info
+        query = re.sub(r'\b(x264|x265|h264|h265|HEVC|AAC|AC3|DTS|MP3)\b', '', query, flags=re.IGNORECASE)
+        
+        # Remove group tags
+        query = re.sub(r'-[A-Z0-9]+$', '', query)
+        
+        # Replace dots and underscores with spaces
+        query = query.replace('.', ' ').replace('_', ' ')
+        
+        # Clean up multiple spaces
+        query = ' '.join(query.split())
+        
+        return query.strip()
+    
+    def _simplify_series_name(self, query):
+        """Remove episode info from series name"""
+        import re
+        
+        # Remove SxxExx pattern
+        simplified = re.sub(r'\bS\d{1,2}E\d{1,2}\b', '', query, flags=re.IGNORECASE)
+        
+        # Remove season/episode separately
+        simplified = re.sub(r'\bS(eason)?\s?\d{1,2}\b', '', simplified, flags=re.IGNORECASE)
+        simplified = re.sub(r'\bE(pisode)?\s?\d{1,2}\b', '', simplified, flags=re.IGNORECASE)
+        
+        # Clean up
+        simplified = ' '.join(simplified.split())
+        
+        return simplified.strip()
     
     def download_subtitle(self, file_id, output_path):
         """
