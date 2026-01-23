@@ -228,9 +228,20 @@ class AutoSync:
             # METHOD 1: Direct alignment of first segments
             first_sub = subtitle_times[0]['start']
             first_speech = speech_times[0]['start']
+            # If subtitle starts before speech, we need to ADD time (delay subtitles)
+            # If subtitle starts after speech, we need to SUBTRACT time (advance subtitles)
             offset_method1 = first_speech - first_sub
             
-            logger.info(f"Method 1 (first segment): offset = {offset_method1:.2f}s")
+            logger.info(f"Method 1 (first segment): subtitle at {first_sub:.2f}s, speech at {first_speech:.2f}s")
+            logger.info(f"Method 1 offset: {offset_method1:.2f}s ({'+' if offset_method1 > 0 else ''}{offset_method1:.2f}s)")
+            
+            # Explanation in log
+            if offset_method1 > 0:
+                logger.info(f"  → Subtitles start BEFORE speech, need to DELAY by {offset_method1:.2f}s")
+            elif offset_method1 < 0:
+                logger.info(f"  → Subtitles start AFTER speech, need to ADVANCE by {abs(offset_method1):.2f}s")
+            else:
+                logger.info(f"  → Perfect alignment!")
             
             # METHOD 2: Cross-correlation with multiple samples
             best_offset = offset_method1
@@ -312,7 +323,17 @@ class AutoSync:
             # Round to nearest 0.05 second for precision
             best_offset = round(best_offset * 20) / 20
             
-            logger.info(f"FINAL OFFSET: {best_offset:.2f}s")
+            logger.info(f"=" * 60)
+            logger.info(f"FINAL OFFSET: {best_offset:+.2f}s")
+            
+            if best_offset > 0:
+                logger.info(f"ACTION: DELAY subtitles by {best_offset:.2f} seconds")
+            elif best_offset < 0:
+                logger.info(f"ACTION: ADVANCE subtitles by {abs(best_offset):.2f} seconds")
+            else:
+                logger.info(f"ACTION: Subtitles already in sync!")
+            
+            logger.info(f"=" * 60)
             
             return best_offset
             
