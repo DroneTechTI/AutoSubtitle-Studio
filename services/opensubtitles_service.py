@@ -216,31 +216,54 @@ class OpenSubtitlesService:
         try:
             logger.info(f"Downloading subtitle file: {file_id}")
             
-            # Get download link
+            if not self.api_key:
+                raise Exception("API key required for downloads")
+            
+            # Get download link with API key
             response = self.session.post(
                 f"{self.api_url}/download",
                 json={'file_id': file_id},
                 timeout=30
             )
             
-            if response.status_code != 200:
-                raise Exception(f"Failed to get download link: {response.status_code}")
+            if response.status_code == 401:
+                raise Exception("Invalid API key or authentication failed")
+            elif response.status_code == 406:
+                raise Exception("Daily download limit reached")
+            elif response.status_code != 200:
+                error_msg = f"Failed to get download link: {response.status_code}"
+                try:
+                    error_data = response.json()
+                    error_msg += f" - {error_data.get('message', 'Unknown error')}"
+                except:
+                    pass
+                raise Exception(error_msg)
             
             download_data = response.json()
             download_link = download_data.get('link')
             
             if not download_link:
-                raise Exception("No download link provided")
+                raise Exception("No download link provided in response")
+            
+            logger.info(f"Got download link, downloading file...")
             
             # Download the file
             subtitle_response = self.session.get(download_link, timeout=60)
             subtitle_response.raise_for_status()
             
             output_path = Path(output_path)
-            with open(output_path, 'wb') as f:
-                f.write(subtitle_response.content)
             
-            logger.info(f"Subtitle downloaded: {output_path}")
+            # Decompress if it's gzipped
+            content = subtitle_response.content
+            if download_link.endswith('.gz') or subtitle_response.headers.get('Content-Type') == 'application/gzip':
+                import gzip
+                logger.info("Decompressing gzipped subtitle...")
+                content = gzip.decompress(content)
+            
+            with open(output_path, 'wb') as f:
+                f.write(content)
+            
+            logger.info(f"Subtitle downloaded successfully: {output_path}")
             return output_path
             
         except Exception as e:
