@@ -42,3 +42,8 @@ temp_audio/
 config.json
 models/
 cache/
+
+# Environment and secrets
+.env
+config_local.py
+*_api_key.txt

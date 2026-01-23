@@ -36,12 +36,29 @@ OPENSUBTITLES_API_URL = "https://api.opensubtitles.com/api/v1"
 OPENSUBTITLES_USER_AGENT = "SubtitleGenerator v1.0"
 
 # OpenSubtitles API Key (required for downloads)
-# Get your free API key from: https://www.opensubtitles.com/consumers
-# 1. Create a free account on opensubtitles.com
-# 2. Go to your profile -> API
-# 3. Generate a new API key
-# 4. Paste it here (replace None with your key in quotes)
-OPENSUBTITLES_API_KEY = "87nT3L4PudQbZIf0T2aNaTfarnnkjyU5"  # Example: "your_api_key_here"
+# IMPORTANT: Don't commit your real API key to GitHub!
+# 
+# OPTION 1 - Use .env file (recommended):
+#   1. Copy .env.example to .env
+#   2. Put your key in .env file
+#   3. The .env file is gitignored (safe)
+#
+# OPTION 2 - Set here directly (less safe):
+#   Replace None with your key in quotes
+#   Remember: Don't push to public repositories!
+
+# Try to load from .env file first
+try:
+    from dotenv import load_dotenv
+    import os
+    load_dotenv()
+    OPENSUBTITLES_API_KEY = os.getenv('OPENSUBTITLES_API_KEY', None)
+except:
+    # Fallback: set your key here (not recommended for public repos)
+    OPENSUBTITLES_API_KEY = None  # Replace None with "your_key_here"
+
+# If you really want to hardcode it (not recommended):
+# OPENSUBTITLES_API_KEY = "your_api_key_here"
 
 # Supported languages (ISO 639-1 codes)
 LANGUAGES = {
