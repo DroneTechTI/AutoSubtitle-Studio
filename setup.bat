@@ -88,7 +88,7 @@ if errorlevel 1 (
         echo.
         echo METODO 3 - Manuale:
         echo   1. Vai su: https://github.com/BtbN/FFmpeg-Builds/releases
-        echo   2. Scarica: ffmpeg-master-latest-win64-gpl.zip
+        echo   2. Scarica: ffmpeg-master-latest-win64-gpl-shared.zip
         echo   3. Estrai in C:\ffmpeg
         echo   4. Aggiungi C:\ffmpeg\bin al PATH di sistema
         echo.

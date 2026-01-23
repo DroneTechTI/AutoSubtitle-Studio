@@ -29,8 +29,10 @@ if not exist "%TEMP%\ffmpeg_install" mkdir "%TEMP%\ffmpeg_install"
 cd /d "%TEMP%\ffmpeg_install"
 
 REM Download FFmpeg using PowerShell
-echo Download da GitHub (BtbN build)...
-powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile 'ffmpeg.zip'}"
+echo Download da GitHub (BtbN build - ultima versione)...
+echo URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip
+echo.
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Write-Host 'Download in corso... attendere...'; Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip' -OutFile 'ffmpeg.zip' -UserAgent 'Mozilla/5.0'; Write-Host 'Download completato!'}"
 
 if not exist "ffmpeg.zip" (
     echo.
@@ -38,7 +40,7 @@ if not exist "ffmpeg.zip" (
     echo.
     echo Prova l'installazione manuale:
     echo 1. Vai su https://github.com/BtbN/FFmpeg-Builds/releases
-    echo 2. Scarica ffmpeg-master-latest-win64-gpl.zip
+    echo 2. Scarica ffmpeg-master-latest-win64-gpl-shared.zip
     echo 3. Estrai nella cartella C:\ffmpeg
     echo 4. Aggiungi C:\ffmpeg\bin al PATH di sistema
     echo.

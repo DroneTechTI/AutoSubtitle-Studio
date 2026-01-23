@@ -97,7 +97,7 @@ choco install ffmpeg
 
 **Windows - METODO MANUALE:**
 1. Vai su https://github.com/BtbN/FFmpeg-Builds/releases
-2. Scarica `ffmpeg-master-latest-win64-gpl.zip`
+2. Scarica `ffmpeg-master-latest-win64-gpl-shared.zip` (ultima versione)
 3. Estrai in `C:\ffmpeg`
 4. Aggiungi `C:\ffmpeg\bin` al PATH di sistema:
    - Cerca "Variabili d'ambiente" nel menu Start
