@@ -81,6 +81,35 @@ class VideoToolsWindow:
             variable=self.auto_sync_before_embed
         ).pack(anchor=tk.W, padx=10, pady=5)
         
+        # Test sync option with radio buttons
+        self.test_mode = tk.StringVar(value='live')
+        
+        test_frame = ttk.Frame(soft_frame)
+        test_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        ttk.Label(test_frame, text="Test Sync:", font=('Arial', 9, 'bold')).pack(side=tk.LEFT)
+        
+        ttk.Radiobutton(
+            test_frame,
+            text="🎮 Live (regola mentre guardi)",
+            variable=self.test_mode,
+            value='live'
+        ).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Radiobutton(
+            test_frame,
+            text="🧪 Semplice (accetta/rifiuta)",
+            variable=self.test_mode,
+            value='simple'
+        ).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Radiobutton(
+            test_frame,
+            text="⚡ Nessuno (veloce)",
+            variable=self.test_mode,
+            value='none'
+        ).pack(side=tk.LEFT, padx=5)
+        
         ttk.Label(soft_frame, text="Lingua:").pack(anchor=tk.W, padx=10)
         self.soft_lang = tk.StringVar(value='ita')
         lang_combo = ttk.Combobox(
@@ -326,6 +355,8 @@ class VideoToolsWindow:
                 
                 subtitle_path = self.subtitle_path.get()
                 
+                offset = 0.0
+                
                 # Auto-sync if enabled
                 if self.auto_sync_before_embed.get():
                     self.status_label.config(text="🤖 Auto-sincronizzazione in corso...", foreground='blue')
@@ -338,11 +369,75 @@ class VideoToolsWindow:
                         )
                         
                         if abs(offset) > 0.1:
+                            subtitle_path = str(synced_path)
+                            
+                            # Test sync based on mode
+                            test_mode = self.test_mode.get()
+                            
+                            if test_mode != 'none':
+                                self.progress_bar.stop()
+                                
+                                if test_mode == 'live':
+                                    # Live sync player
+                                    self.status_label.config(text="🎮 Live Sync Tester...", foreground='blue')
+                                    
+                                    from gui.live_sync_player import LiveSyncPlayer
+                                    live_player = LiveSyncPlayer(
+                                        self.window,
+                                        self.video_path.get(),
+                                        subtitle_path,
+                                        offset
+                                    )
+                                    result = live_player.get_result()
+                                    
+                                    if result[0] == 'cancel':
+                                        self.status_label.config(text="✗ Operazione annullata", foreground='orange')
+                                        return
+                                    elif result[0] == 'save':
+                                        # Apply final offset from live testing
+                                        final_offset = result[1]
+                                        if abs(final_offset - offset) > 0.05:
+                                            from utils.video_processor import VideoProcessor
+                                            processor = VideoProcessor()
+                                            subtitle_path = str(processor.sync_subtitles(
+                                                self.subtitle_path.get(),
+                                                final_offset
+                                            ))
+                                            offset = final_offset
+                                
+                                elif test_mode == 'simple':
+                                    # Simple tester
+                                    self.status_label.config(text="🧪 Test sincronizzazione...", foreground='blue')
+                                    
+                                    from gui.sync_tester import SyncTesterWindow
+                                    tester = SyncTesterWindow(
+                                        self.window,
+                                        self.video_path.get(),
+                                        subtitle_path,
+                                        offset
+                                    )
+                                    result = tester.get_result()
+                                    
+                                    if result[0] == 'cancel':
+                                        self.status_label.config(text="✗ Operazione annullata", foreground='orange')
+                                        return
+                                    elif result[0] == 'adjust':
+                                        from utils.video_processor import VideoProcessor
+                                        processor = VideoProcessor()
+                                        final_adjustment = result[1] - offset
+                                        if abs(final_adjustment) > 0.05:
+                                            subtitle_path = str(processor.sync_subtitles(
+                                                subtitle_path,
+                                                final_adjustment
+                                            ))
+                                            offset = result[1]
+                                
+                                self.progress_bar.start(10)
+                            
                             self.status_label.config(
-                                text=f"✓ Sincronizzati (offset: {offset:.1f}s). Integrazione...", 
+                                text=f"✓ Sincronizzati (offset: {offset:.2f}s). Integrazione...", 
                                 foreground='blue'
                             )
-                            subtitle_path = str(synced_path)
                         else:
                             self.status_label.config(text="✓ Già sincronizzati. Integrazione...", foreground='blue')
                             
