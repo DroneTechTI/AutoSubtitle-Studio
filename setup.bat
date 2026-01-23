@@ -48,21 +48,58 @@ if errorlevel 1 (
     echo.
     echo FFmpeg e necessario per estrarre l'audio dai video.
     echo.
-    echo Installazione automatica con Chocolatey:
-    echo 1. Apri PowerShell come Amministratore
-    echo 2. Installa Chocolatey:
-    echo    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'^)^)
-    echo 3. Chiudi e riapri PowerShell come Amministratore
-    echo 4. Esegui: choco install ffmpeg
-    echo.
-    echo Installazione manuale:
-    echo 1. Scarica FFmpeg da: https://ffmpeg.org/download.html
-    echo 2. Estrai i file
-    echo 3. Aggiungi la cartella bin al PATH di sistema
-    echo.
-    echo Dopo l'installazione di FFmpeg, riesegui questo script.
-    echo.
-    pause
+    
+    REM Ask if user wants automatic installation
+    set /p INSTALL_FFMPEG="Vuoi installare FFmpeg automaticamente? (S/N): "
+    
+    if /i "%INSTALL_FFMPEG%"=="S" (
+        echo.
+        echo Avvio installazione automatica FFmpeg...
+        echo NOTA: Richiede privilegi di amministratore!
+        echo.
+        
+        REM Run installer as admin
+        powershell -Command "Start-Process '%~dp0install_ffmpeg_windows.bat' -Verb RunAs"
+        
+        echo.
+        echo L'installer FFmpeg e stato avviato in una nuova finestra.
+        echo.
+        echo IMPORTANTE:
+        echo 1. Completa l'installazione nella finestra dell'installer
+        echo 2. Dopo l'installazione, CHIUDI questo terminale
+        echo 3. Riapri un NUOVO terminale
+        echo 4. Riesegui setup.bat
+        echo.
+        pause
+        exit /b 0
+    ) else (
+        echo.
+        echo Installazione manuale FFmpeg:
+        echo.
+        echo METODO 1 - Automatico ^(Consigliato^):
+        echo   1. Click destro su "install_ffmpeg_windows.bat"
+        echo   2. Seleziona "Esegui come amministratore"
+        echo   3. Segui le istruzioni
+        echo.
+        echo METODO 2 - Chocolatey:
+        echo   1. Apri PowerShell come Amministratore
+        echo   2. Installa Chocolatey: https://chocolatey.org/install
+        echo   3. Esegui: choco install ffmpeg
+        echo.
+        echo METODO 3 - Manuale:
+        echo   1. Vai su: https://github.com/BtbN/FFmpeg-Builds/releases
+        echo   2. Scarica: ffmpeg-master-latest-win64-gpl.zip
+        echo   3. Estrai in C:\ffmpeg
+        echo   4. Aggiungi C:\ffmpeg\bin al PATH di sistema
+        echo.
+        echo Dopo l'installazione di FFmpeg:
+        echo   - Chiudi questo terminale
+        echo   - Apri un NUOVO terminale
+        echo   - Riesegui setup.bat
+        echo.
+        pause
+        exit /b 0
+    )
 ) else (
     echo FFmpeg trovato!
     ffmpeg -version | findstr ffmpeg

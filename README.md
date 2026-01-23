@@ -73,9 +73,20 @@ start.bat
 
 ### 🔧 Installazione FFmpeg (se richiesto)
 
-**Windows (PowerShell come Amministratore):**
+**Windows - METODO AUTOMATICO (Consigliato):**
+
+Se durante il setup FFmpeg non è installato, ti verrà chiesto se vuoi installarlo automaticamente.
+
+Oppure puoi lanciarlo manualmente:
+1. **Click destro** su `install_ffmpeg_windows.bat`
+2. Seleziona **"Esegui come amministratore"**
+3. Segui le istruzioni
+4. Chiudi e riapri il terminale
+5. Riesegui `setup.bat`
+
+**Windows - METODO CHOCOLATEY (Alternativo):**
 ```powershell
-# Installa Chocolatey
+# Installa Chocolatey (se non ce l'hai)
 Set-ExecutionPolicy Bypass -Scope Process -Force
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
 iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
@@ -83,6 +94,19 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocola
 # Installa FFmpeg
 choco install ffmpeg
 ```
+
+**Windows - METODO MANUALE:**
+1. Vai su https://github.com/BtbN/FFmpeg-Builds/releases
+2. Scarica `ffmpeg-master-latest-win64-gpl.zip`
+3. Estrai in `C:\ffmpeg`
+4. Aggiungi `C:\ffmpeg\bin` al PATH di sistema:
+   - Cerca "Variabili d'ambiente" nel menu Start
+   - Clicca "Modifica variabili d'ambiente di sistema"
+   - Click su "Variabili d'ambiente"
+   - Seleziona "Path" e click "Modifica"
+   - Click "Nuovo" e aggiungi `C:\ffmpeg\bin`
+   - OK su tutto
+5. Chiudi e riapri il terminale
 
 **macOS:**
 ```bash
