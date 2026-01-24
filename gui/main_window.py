@@ -28,6 +28,9 @@ class SubtitleGeneratorGUI:
         self.root = tk.Tk()
         self.root.title(f"{self.controller.config.APP_NAME} v{self.controller.config.APP_VERSION}")
         
+        # Create menu bar
+        self._create_menu()
+        
         # Load preferences
         try:
             self.preferences = PreferencesManager()
@@ -62,6 +65,48 @@ class SubtitleGeneratorGUI:
         
         # Save window geometry on close
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+    
+    def _create_menu(self):
+        """Create menu bar"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # File menu
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Apri Video", command=self._browse_video)
+        file_menu.add_command(label="File Recenti", command=self._show_recent_files)
+        file_menu.add_separator()
+        file_menu.add_command(label="Apri Cartella Output", command=self._open_output_folder)
+        file_menu.add_separator()
+        file_menu.add_command(label="Esci", command=self._on_closing)
+        
+        # Tools menu
+        tools_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Strumenti", menu=tools_menu)
+        tools_menu.add_command(label="Batch Processing", command=self._open_batch_processor)
+        tools_menu.add_command(label="Integra Video", command=self._open_video_tools)
+        tools_menu.add_command(label="Pulisci Sottotitoli", command=self._clean_subtitles)
+        tools_menu.add_command(label="Statistiche Sottotitoli", command=self._show_subtitle_stats)
+        tools_menu.add_separator()
+        tools_menu.add_command(label="Confronta Sottotitoli", command=self._compare_subtitles)
+        tools_menu.add_command(label="Unisci Sottotitoli", command=self._merge_subtitles)
+        
+        # Options menu
+        options_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Opzioni", menu=options_menu)
+        options_menu.add_command(label="Preferenze", command=self._show_preferences)
+        options_menu.add_command(label="Pulisci Cache", command=self._clean_cache)
+        options_menu.add_separator()
+        options_menu.add_command(label="Verifica FFmpeg", command=self._check_ffmpeg)
+        
+        # Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Aiuto", menu=help_menu)
+        help_menu.add_command(label="Guida Rapida", command=self._show_quick_guide)
+        help_menu.add_command(label="Shortcuts Tastiera", command=self._show_shortcuts)
+        help_menu.add_separator()
+        help_menu.add_command(label="Info", command=self._show_about)
         
     def _setup_ui(self):
         """Setup the user interface"""
@@ -702,6 +747,284 @@ class SubtitleGeneratorGUI:
             pref_window.destroy()
         
         ttk.Button(pref_window, text="💾 Salva", command=save_prefs).pack(pady=10)
+    
+    def _show_recent_files(self):
+        """Show recent files menu"""
+        if not self.preferences:
+            return
+        
+        recent_window = tk.Toplevel(self.root)
+        recent_window.title("File Recenti")
+        recent_window.geometry("500x400")
+        
+        ttk.Label(recent_window, text="📁 File Recenti", font=('Arial', 12, 'bold')).pack(pady=10)
+        
+        listbox = tk.Listbox(recent_window, height=15)
+        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        for video in self.preferences.get_last_videos():
+            listbox.insert(tk.END, video)
+        
+        def load_selected():
+            selection = listbox.curselection()
+            if selection:
+                self.video_path.set(listbox.get(selection[0]))
+                recent_window.destroy()
+        
+        ttk.Button(recent_window, text="Carica", command=load_selected).pack(pady=10)
+    
+    def _clean_subtitles(self):
+        """Clean subtitle file from ads and formatting"""
+        from tkinter import filedialog
+        
+        input_file = filedialog.askopenfilename(
+            title="Seleziona sottotitoli da pulire",
+            filetypes=[('Subtitle Files', '*.srt *.vtt')]
+        )
+        
+        if not input_file:
+            return
+        
+        # Options dialog
+        options_window = tk.Toplevel(self.root)
+        options_window.title("Opzioni Pulizia")
+        options_window.geometry("400x300")
+        
+        ttk.Label(options_window, text="🧹 Cosa Vuoi Rimuovere?", font=('Arial', 11, 'bold')).pack(pady=10)
+        
+        remove_ads = tk.BooleanVar(value=True)
+        remove_hi = tk.BooleanVar(value=False)
+        remove_fmt = tk.BooleanVar(value=True)
+        
+        ttk.Checkbutton(options_window, text="Pubblicità (URL, siti web)", variable=remove_ads).pack(anchor=tk.W, padx=20, pady=5)
+        ttk.Checkbutton(options_window, text="Annotazioni HI [door], (sighs)", variable=remove_hi).pack(anchor=tk.W, padx=20, pady=5)
+        ttk.Checkbutton(options_window, text="Tag formattazione <i>, {bold}", variable=remove_fmt).pack(anchor=tk.W, padx=20, pady=5)
+        
+        def do_clean():
+            try:
+                from utils.subtitle_cleaner import SubtitleCleaner
+                cleaner = SubtitleCleaner()
+                
+                result = cleaner.clean_subtitle_file(
+                    input_file,
+                    remove_ads=remove_ads.get(),
+                    remove_hi=remove_hi.get(),
+                    remove_formatting=remove_fmt.get()
+                )
+                
+                messagebox.showinfo("Successo", f"Sottotitoli puliti:\n{result}")
+                options_window.destroy()
+            except Exception as e:
+                messagebox.showerror("Errore", str(e))
+        
+        ttk.Button(options_window, text="🧹 Pulisci", command=do_clean).pack(pady=20)
+    
+    def _show_subtitle_stats(self):
+        """Show subtitle statistics"""
+        from tkinter import filedialog
+        
+        subtitle_file = filedialog.askopenfilename(
+            title="Seleziona sottotitoli da analizzare",
+            filetypes=[('Subtitle Files', '*.srt *.vtt')]
+        )
+        
+        if not subtitle_file:
+            return
+        
+        try:
+            from utils.subtitle_stats import SubtitleStats
+            analyzer = SubtitleStats()
+            stats = analyzer.analyze(subtitle_file)
+            summary = analyzer.get_summary(stats)
+            
+            stats_window = tk.Toplevel(self.root)
+            stats_window.title("Statistiche Sottotitoli")
+            stats_window.geometry("500x400")
+            
+            ttk.Label(stats_window, text="📊 Statistiche", font=('Arial', 12, 'bold')).pack(pady=10)
+            
+            text_widget = tk.Text(stats_window, width=60, height=20, wrap=tk.WORD)
+            text_widget.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+            text_widget.insert(1.0, summary)
+            text_widget.config(state='disabled')
+            
+        except Exception as e:
+            messagebox.showerror("Errore", str(e))
+    
+    def _compare_subtitles(self):
+        """Compare two subtitle files"""
+        from tkinter import filedialog
+        
+        file1 = filedialog.askopenfilename(title="Seleziona primo sottotitolo", filetypes=[('Subtitle Files', '*.srt *.vtt')])
+        if not file1:
+            return
+        
+        file2 = filedialog.askopenfilename(title="Seleziona secondo sottotitolo", filetypes=[('Subtitle Files', '*.srt *.vtt')])
+        if not file2:
+            return
+        
+        messagebox.showinfo("Info", f"Confronto tra:\n\n{Path(file1).name}\ne\n{Path(file2).name}\n\nFunzionalità in sviluppo!")
+    
+    def _merge_subtitles(self):
+        """Merge multiple subtitle files"""
+        from tkinter import filedialog
+        
+        files = filedialog.askopenfilenames(title="Seleziona sottotitoli da unire", filetypes=[('Subtitle Files', '*.srt *.vtt')])
+        
+        if len(files) < 2:
+            messagebox.showwarning("Attenzione", "Seleziona almeno 2 file!")
+            return
+        
+        messagebox.showinfo("Info", f"Unione di {len(files)} file.\n\nFunzionalità in sviluppo!")
+    
+    def _clean_cache(self):
+        """Clean application cache"""
+        if messagebox.askyesno("Conferma", "Vuoi pulire la cache dell'applicazione?\n(Modelli AI non saranno eliminati)"):
+            try:
+                import shutil
+                cache_dir = self.controller.config.CACHE_DIR
+                temp_dir = self.controller.config.TEMP_DIR
+                
+                if cache_dir.exists():
+                    shutil.rmtree(cache_dir)
+                    cache_dir.mkdir()
+                
+                if temp_dir.exists():
+                    for file in temp_dir.glob("*"):
+                        file.unlink()
+                
+                messagebox.showinfo("Successo", "Cache pulita!")
+            except Exception as e:
+                messagebox.showerror("Errore", str(e))
+    
+    def _check_ffmpeg(self):
+        """Check FFmpeg installation"""
+        from utils.audio_extractor import check_ffmpeg_installed
+        
+        if check_ffmpeg_installed():
+            try:
+                import subprocess
+                result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True)
+                version_info = result.stdout.split('\n')[0]
+                messagebox.showinfo("FFmpeg", f"✓ FFmpeg installato!\n\n{version_info}")
+            except:
+                messagebox.showinfo("FFmpeg", "✓ FFmpeg è installato e funzionante!")
+        else:
+            messagebox.showerror("FFmpeg", "✗ FFmpeg non trovato!\n\nEsegui install_ffmpeg_windows.bat")
+    
+    def _show_quick_guide(self):
+        """Show quick guide"""
+        guide_text = """
+🎬 GUIDA RAPIDA
+
+GENERAZIONE AUTOMATICA:
+1. Seleziona video
+2. Scegli "Auto-Genera"
+3. Seleziona lingua
+4. Click "Avvia"
+5. Attendi 5-10 minuti
+6. Sottotitoli pronti!
+
+DOWNLOAD OPENSUBTITLES:
+1. Configura API key in config.py
+2. Seleziona video
+3. Scegli "Scarica"
+4. Click "Avvia"
+
+INTEGRAZIONE VIDEO:
+1. Tools → Integra Video
+2. Seleziona video e sottotitoli
+3. Scegli Soft (consigliato) o Hard
+4. Auto-sync attivo di default
+5. Test con Live Player
+6. Regola in tempo reale mentre guardi!
+
+SHORTCUTS:
+Ctrl+O: Apri video
+Ctrl+B: Batch processing
+Ctrl+I: Integra video
+Ctrl+P: Preferenze
+"""
+        
+        guide_window = tk.Toplevel(self.root)
+        guide_window.title("Guida Rapida")
+        guide_window.geometry("500x500")
+        
+        text_widget = tk.Text(guide_window, wrap=tk.WORD)
+        text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        text_widget.insert(1.0, guide_text)
+        text_widget.config(state='disabled')
+    
+    def _show_shortcuts(self):
+        """Show keyboard shortcuts"""
+        shortcuts_text = """
+⌨️ KEYBOARD SHORTCUTS
+
+FILE:
+Ctrl+O: Apri video
+Ctrl+R: File recenti
+
+STRUMENTI:
+Ctrl+B: Batch processing
+Ctrl+I: Integra video
+Ctrl+T: Traduci
+Ctrl+E: Anteprima
+
+AZIONI:
+Ctrl+Enter: Avvia elaborazione
+Ctrl+C: Annulla
+Ctrl+L: Pulisci log
+
+OPZIONI:
+Ctrl+P: Preferenze
+Ctrl+,: Impostazioni
+
+HELP:
+F1: Guida rapida
+Ctrl+H: Shortcuts (questa finestra)
+"""
+        
+        shortcuts_window = tk.Toplevel(self.root)
+        shortcuts_window.title("Keyboard Shortcuts")
+        shortcuts_window.geometry("400x500")
+        
+        text_widget = tk.Text(shortcuts_window, wrap=tk.WORD)
+        text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        text_widget.insert(1.0, shortcuts_text)
+        text_widget.config(state='disabled')
+    
+    def _show_about(self):
+        """Show about dialog"""
+        about_text = f"""
+{self.controller.config.APP_NAME}
+Version {self.controller.config.APP_VERSION}
+
+Applicazione professionale per generazione e gestione
+sottotitoli con intelligenza artificiale.
+
+FUNZIONALITÀ:
+• Generazione AI con Whisper (90+ lingue)
+• Download da OpenSubtitles
+• Batch processing
+• Live sync adjustment
+• Preview e editing
+• Traduzione
+• Integrazione video (soft/hard)
+• E molto altro!
+
+TECNOLOGIE:
+• Python 3
+• OpenAI Whisper
+• FFmpeg
+• tkinter
+
+LICENZA: MIT
+Copyright © 2026
+
+Sviluppato con ❤️
+"""
+        
+        messagebox.showinfo("About", about_text)
     
     def _on_closing(self):
         """Handle window closing"""
