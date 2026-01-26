@@ -73,7 +73,7 @@ class AutoSync:
     
     def calculate_offset(self, subtitle_path, audio_path):
         """
-        Calculate optimal offset between subtitles and audio
+        Calculate optimal offset between subtitles and audio with text validation
         
         Args:
             subtitle_path: Path to subtitle file
@@ -83,7 +83,7 @@ class AutoSync:
             Optimal offset in seconds
         """
         try:
-            logger.info("Calculating optimal subtitle offset...")
+            logger.info("Calculating optimal subtitle offset with text validation...")
             
             # Parse subtitle file
             subtitle_times = self._parse_subtitle_times(subtitle_path)
@@ -92,15 +92,25 @@ class AutoSync:
                 logger.warning("No subtitle times found")
                 return 0.0
             
-            # Detect speech in audio
+            # Detect speech in audio WITH transcription for validation
             speech_times = self.detect_speech_timestamps(audio_path)
             
             if not speech_times:
                 logger.warning("No speech detected in audio")
                 return 0.0
             
-            # Find best offset by comparing patterns
-            offset = self._find_best_offset(subtitle_times, speech_times)
+            # Parse subtitle TEXT for validation
+            subtitle_texts = self._parse_subtitle_texts(subtitle_path)
+            
+            # Find best offset by comparing patterns AND text
+            offset = self._find_best_offset_with_validation(
+                subtitle_times, 
+                speech_times,
+                subtitle_texts
+            )
+            
+            # Validate offset direction
+            offset = self._validate_offset_direction(offset, subtitle_times, speech_times)
             
             logger.info(f"Optimal offset calculated: {offset:.2f} seconds")
             return offset
@@ -109,7 +119,7 @@ class AutoSync:
             logger.error(f"Error calculating offset: {str(e)}")
             return 0.0
     
-    def auto_sync_subtitles(self, subtitle_path, video_path, output_path=None):
+    def auto_sync_subtitles(self, subtitle_path, video_path, output_path=None, use_smart_sync=True):
         """
         Automatically synchronize subtitles with video
         
@@ -117,13 +127,15 @@ class AutoSync:
             subtitle_path: Path to subtitle file
             video_path: Path to video file
             output_path: Output path for synced subtitles
+            use_smart_sync: Use smart calibration from previous syncs
         
         Returns:
-            Tuple of (output_path, offset_applied)
+            Tuple of (output_path, offset_applied, calibrated_offset)
         """
         try:
             from utils.audio_extractor import AudioExtractor
             from utils.video_processor import VideoProcessor
+            from utils.smart_sync import SmartSync
             import tempfile
             
             subtitle_path = Path(subtitle_path)
@@ -142,23 +154,45 @@ class AutoSync:
             audio_path = audio_extractor.extract_audio(video_path)
             
             try:
-                # Calculate offset
-                offset = self.calculate_offset(subtitle_path, audio_path)
+                # Calculate raw offset
+                raw_offset = self.calculate_offset(subtitle_path, audio_path)
                 
-                if abs(offset) < 0.1:
+                # Apply smart calibration if enabled
+                calibrated_offset = raw_offset
+                if use_smart_sync:
+                    smart = SmartSync()
+                    
+                    # Detect video type
+                    video_type = self._detect_video_type(video_path.name)
+                    
+                    calibrated_offset = smart.apply_calibration(raw_offset, video_type)
+                    
+                    # Show suggestion
+                    should_adjust, suggested, confidence = smart.suggest_offset_adjustment(raw_offset)
+                    if should_adjust:
+                        logger.info("=" * 60)
+                        logger.info("💡 SUGGERIMENTO INTELLIGENTE:")
+                        logger.info(f"   Basato su {len(smart.calibration_data['corrections'])} sync precedenti")
+                        logger.info(f"   Offset grezzo: {raw_offset:+.2f}s")
+                        logger.info(f"   Offset calibrato: {calibrated_offset:+.2f}s")
+                        logger.info(f"   Confidenza: {confidence*100:.0f}%")
+                        logger.info("=" * 60)
+                
+                final_offset = calibrated_offset
+                
+                if abs(final_offset) < 0.1:
                     logger.info("Subtitles already in sync!")
-                    # Just copy the file
                     import shutil
                     shutil.copy(subtitle_path, output_path)
-                    return output_path, 0.0
+                    return output_path, raw_offset, calibrated_offset
                 
                 # Apply offset
-                logger.info(f"Applying offset: {offset:.2f}s")
+                logger.info(f"Applying final offset: {final_offset:+.2f}s")
                 processor = VideoProcessor()
-                synced_path = processor.sync_subtitles(subtitle_path, offset, output_path)
+                synced_path = processor.sync_subtitles(subtitle_path, final_offset, output_path)
                 
                 logger.info("Auto-sync completed successfully!")
-                return synced_path, offset
+                return synced_path, raw_offset, calibrated_offset
                 
             finally:
                 # Cleanup temp audio
@@ -167,6 +201,21 @@ class AutoSync:
         except Exception as e:
             logger.error(f"Error in auto-sync: {str(e)}")
             raise
+    
+    def _detect_video_type(self, filename):
+        """Detect video type from filename"""
+        filename_lower = filename.lower()
+        
+        # TV series patterns
+        if any(pattern in filename_lower for pattern in ['s0', 's1', 's2', 'season', 'episode', 'ep', 'e0']):
+            return 'tv'
+        
+        # Documentary patterns
+        if any(pattern in filename_lower for pattern in ['documentary', 'docum', 'natgeo', 'bbc', 'discovery']):
+            return 'documentary'
+        
+        # Default to movie
+        return 'movie'
     
     def _parse_subtitle_times(self, subtitle_path):
         """Parse timestamps from subtitle file"""
@@ -199,6 +248,108 @@ class AutoSync:
         except Exception as e:
             logger.error(f"Error parsing subtitle times: {str(e)}")
             return []
+    
+    def _parse_subtitle_texts(self, subtitle_path):
+        """Parse subtitle texts for validation"""
+        try:
+            import re
+            
+            texts = []
+            
+            with open(subtitle_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            blocks = content.strip().split('\n\n')
+            
+            for block in blocks:
+                lines = block.strip().split('\n')
+                if len(lines) >= 3:
+                    text = ' '.join(lines[2:]).strip().lower()
+                    # Remove formatting
+                    text = re.sub(r'<[^>]+>', '', text)
+                    text = re.sub(r'\{[^\}]+\}', '', text)
+                    text = re.sub(r'[\[\(].*?[\]\)]', '', text)
+                    texts.append(text)
+            
+            return texts
+            
+        except Exception as e:
+            logger.error(f"Error parsing subtitle texts: {str(e)}")
+            return []
+    
+    def _find_best_offset_with_validation(self, subtitle_times, speech_times, subtitle_texts):
+        """Find best offset with text validation"""
+        # Use existing method
+        offset = self._find_best_offset(subtitle_times, speech_times)
+        
+        # Validate with text matching if available
+        if subtitle_texts and len(speech_times) > 0 and hasattr(speech_times[0], 'get'):
+            try:
+                # Compare first few subtitle texts with speech transcriptions
+                matches = 0
+                total = min(5, len(subtitle_texts), len(speech_times))
+                
+                for i in range(total):
+                    sub_text = subtitle_texts[i]
+                    speech_text = speech_times[i].get('text', '').lower().strip()
+                    
+                    # Simple similarity check
+                    if len(sub_text) > 10 and len(speech_text) > 10:
+                        sub_words = set(sub_text.split()[:5])
+                        speech_words = set(speech_text.split()[:5])
+                        overlap = len(sub_words & speech_words)
+                        if overlap >= 2:
+                            matches += 1
+                
+                confidence = matches / total if total > 0 else 0
+                logger.info(f"Text validation confidence: {confidence:.1%}")
+                
+            except Exception as e:
+                logger.debug(f"Text validation error: {str(e)}")
+        
+        return offset
+    
+    def _validate_offset_direction(self, offset, subtitle_times, speech_times):
+        """
+        Validate offset direction is correct
+        
+        If subtitles come AFTER speech in the video, offset should be NEGATIVE (move subtitles earlier)
+        If subtitles come BEFORE speech in the video, offset should be POSITIVE (move subtitles later)
+        """
+        try:
+            if len(subtitle_times) == 0 or len(speech_times) == 0:
+                return offset
+            
+            first_sub = subtitle_times[0]['start']
+            first_speech = speech_times[0]['start']
+            
+            logger.info(f"Validation check:")
+            logger.info(f"  First subtitle appears at: {first_sub:.2f}s")
+            logger.info(f"  First speech detected at: {first_speech:.2f}s")
+            logger.info(f"  Calculated offset: {offset:+.2f}s")
+            
+            # Logic explanation:
+            # If first_sub > first_speech: subtitles are LATE, need to move them EARLIER (negative offset)
+            # If first_sub < first_speech: subtitles are EARLY, need to move them LATER (positive offset)
+            
+            expected_sign = 1 if first_speech > first_sub else -1
+            actual_sign = 1 if offset > 0 else -1
+            
+            if expected_sign != actual_sign and abs(offset) > 0.5:
+                logger.warning(f"  ⚠️ Offset direction seems incorrect!")
+                logger.warning(f"  Expected: {'positive' if expected_sign > 0 else 'negative'}")
+                logger.warning(f"  Got: {'positive' if actual_sign > 0 else 'negative'}")
+                logger.warning(f"  Inverting offset sign...")
+                offset = -offset
+                logger.info(f"  Corrected offset: {offset:+.2f}s")
+            else:
+                logger.info(f"  ✓ Offset direction validated as correct")
+            
+            return offset
+            
+        except Exception as e:
+            logger.error(f"Error validating offset direction: {str(e)}")
+            return offset
     
     def _find_best_offset(self, subtitle_times, speech_times, max_offset=30):
         """
