@@ -6,6 +6,8 @@ import requests
 from pathlib import Path
 import hashlib
 import struct
+import time
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,81 @@ class OpenSubtitlesService:
         })
         if api_key:
             self.session.headers.update({'Api-Key': api_key})
+    
+    def _retry_request(self, method: str, url: str, max_retries: int = 3, 
+                      backoff_factor: float = 2.0, **kwargs) -> Optional[requests.Response]:
+        """
+        Execute HTTP request with automatic retry and exponential backoff
+        
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            url: Request URL
+            max_retries: Maximum number of retry attempts
+            backoff_factor: Multiplier for exponential backoff
+            **kwargs: Additional arguments for requests
+        
+        Returns:
+            Response object or None if all retries failed
+        """
+        last_exception = None
+        
+        for attempt in range(max_retries):
+            try:
+                # Execute request
+                if method.upper() == 'GET':
+                    response = self.session.get(url, **kwargs)
+                elif method.upper() == 'POST':
+                    response = self.session.post(url, **kwargs)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+                
+                # Check if we should retry based on status code
+                if response.status_code in [200, 401, 406]:
+                    # Success or non-retryable errors
+                    return response
+                elif response.status_code == 429:
+                    # Rate limiting - use longer backoff
+                    logger.warning(f"Rate limited by OpenSubtitles (429). Waiting before retry...")
+                    wait_time = backoff_factor ** (attempt + 2)  # Longer wait for rate limits
+                elif response.status_code >= 500:
+                    # Server error - retry
+                    logger.warning(f"Server error {response.status_code}. Attempt {attempt + 1}/{max_retries}")
+                    wait_time = backoff_factor ** attempt
+                else:
+                    # Other client errors - don't retry
+                    return response
+                
+                # Wait before retry
+                if attempt < max_retries - 1:
+                    logger.info(f"Waiting {wait_time:.1f} seconds before retry...")
+                    time.sleep(wait_time)
+                    
+            except requests.exceptions.Timeout as e:
+                logger.warning(f"Request timeout. Attempt {attempt + 1}/{max_retries}")
+                last_exception = e
+                if attempt < max_retries - 1:
+                    wait_time = backoff_factor ** attempt
+                    logger.info(f"Waiting {wait_time:.1f} seconds before retry...")
+                    time.sleep(wait_time)
+                    
+            except requests.exceptions.ConnectionError as e:
+                logger.warning(f"Connection error. Attempt {attempt + 1}/{max_retries}")
+                last_exception = e
+                if attempt < max_retries - 1:
+                    wait_time = backoff_factor ** attempt
+                    logger.info(f"Waiting {wait_time:.1f} seconds before retry...")
+                    time.sleep(wait_time)
+                    
+            except Exception as e:
+                logger.error(f"Unexpected error: {str(e)}")
+                last_exception = e
+                break
+        
+        # All retries failed
+        if last_exception:
+            logger.error(f"All {max_retries} retry attempts failed. Last error: {str(last_exception)}")
+        
+        return None
     
     def calculate_video_hash(self, video_path):
         """
@@ -141,22 +218,33 @@ class OpenSubtitlesService:
             return []
     
     def _do_search(self, search_params):
-        """Execute search request"""
+        """Execute search request with automatic retry"""
         try:
-            response = self.session.get(
+            response = self._retry_request(
+                'GET',
                 f"{self.api_url}/subtitles",
                 params=search_params,
                 timeout=30
             )
             
+            if response is None:
+                logger.error("Search failed after all retry attempts")
+                return []
+            
             if response.status_code == 200:
                 data = response.json()
                 return data.get('data', [])
+            elif response.status_code == 429:
+                logger.error("Rate limit exceeded. Please try again later.")
+                return []
+            elif response.status_code >= 500:
+                logger.error(f"OpenSubtitles server error: {response.status_code}")
+                return []
             else:
                 logger.debug(f"Search failed with status: {response.status_code}")
                 return []
         except Exception as e:
-            logger.debug(f"Search request error: {str(e)}")
+            logger.error(f"Search request error: {str(e)}")
             return []
     
     def _extract_query_from_filename(self, filename):
@@ -204,7 +292,7 @@ class OpenSubtitlesService:
     
     def download_subtitle(self, file_id, output_path):
         """
-        Download subtitle file
+        Download subtitle file with automatic retry
         
         Args:
             file_id: OpenSubtitles file ID
@@ -219,17 +307,23 @@ class OpenSubtitlesService:
             if not self.api_key:
                 raise Exception("API key required for downloads")
             
-            # Get download link with API key
-            response = self.session.post(
+            # Get download link with API key (with retry)
+            response = self._retry_request(
+                'POST',
                 f"{self.api_url}/download",
                 json={'file_id': file_id},
                 timeout=30
             )
             
+            if response is None:
+                raise Exception("Failed to get download link after multiple attempts. Check your internet connection.")
+            
             if response.status_code == 401:
                 raise Exception("Invalid API key or authentication failed")
             elif response.status_code == 406:
-                raise Exception("Daily download limit reached")
+                raise Exception("Daily download limit reached. Try again tomorrow or upgrade your plan.")
+            elif response.status_code == 429:
+                raise Exception("Too many requests. Please wait a few minutes and try again.")
             elif response.status_code != 200:
                 error_msg = f"Failed to get download link: {response.status_code}"
                 try:
@@ -247,8 +341,16 @@ class OpenSubtitlesService:
             
             logger.info(f"Got download link, downloading file...")
             
-            # Download the file
-            subtitle_response = self.session.get(download_link, timeout=60)
+            # Download the file (with retry)
+            subtitle_response = self._retry_request(
+                'GET',
+                download_link,
+                timeout=60
+            )
+            
+            if subtitle_response is None:
+                raise Exception("Failed to download subtitle file after multiple attempts")
+            
             subtitle_response.raise_for_status()
             
             output_path = Path(output_path)
