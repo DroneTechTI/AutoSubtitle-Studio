@@ -16,6 +16,7 @@ try:
     from gui.log_viewer import LogViewerWindow
     from gui.multilang_window import MultiLanguageWindow
     from utils.preferences_manager import PreferencesManager
+    from utils.i18n import get_i18n, t
     from services.translation_service import TranslationService
 except ImportError:
     # For direct execution
@@ -27,6 +28,7 @@ class SubtitleGeneratorGUI:
     
     def __init__(self, app_controller):
         self.controller = app_controller
+        self.i18n = get_i18n()
         self.root = tk.Tk()
         self.root.title(f"{self.controller.config.APP_NAME} v{self.controller.config.APP_VERSION}")
         
@@ -100,6 +102,29 @@ class SubtitleGeneratorGUI:
         options_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Opzioni", menu=options_menu)
         options_menu.add_command(label="Preferenze", command=self._show_preferences)
+        options_menu.add_separator()
+        
+        # Language submenu
+        language_menu = tk.Menu(options_menu, tearoff=0)
+        options_menu.add_cascade(label="🌍 Lingua Interfaccia", menu=language_menu)
+        
+        current_lang = self.i18n.get_current_language()
+        self.lang_var = tk.StringVar(value=current_lang)
+        
+        language_menu.add_radiobutton(
+            label="🇮🇹 Italiano",
+            variable=self.lang_var,
+            value="it",
+            command=lambda: self._change_ui_language("it")
+        )
+        language_menu.add_radiobutton(
+            label="🇬🇧 English",
+            variable=self.lang_var,
+            value="en",
+            command=lambda: self._change_ui_language("en")
+        )
+        
+        options_menu.add_separator()
         options_menu.add_command(label="Pulisci Cache", command=self._clean_cache)
         options_menu.add_separator()
         options_menu.add_command(label="Verifica FFmpeg", command=self._check_ffmpeg)
@@ -1026,6 +1051,31 @@ Ctrl+H: Shortcuts (questa finestra)
         except Exception as e:
             logger.error(f"Error opening multi-language window: {str(e)}")
             messagebox.showerror("Errore", f"Impossibile aprire finestra multi-lingua:\n{str(e)}")
+    
+    def _change_ui_language(self, language_code):
+        """Change UI language"""
+        try:
+            self.i18n.set_language(language_code)
+            
+            # Show restart message
+            if language_code == 'it':
+                messagebox.showinfo(
+                    "Lingua Cambiata",
+                    "Lingua interfaccia cambiata in Italiano!\n\n"
+                    "Riavvia l'applicazione per applicare le modifiche."
+                )
+            else:
+                messagebox.showinfo(
+                    "Language Changed",
+                    "Interface language changed to English!\n\n"
+                    "Restart the application to apply changes."
+                )
+            
+            logger.info(f"UI language changed to: {language_code}")
+            
+        except Exception as e:
+            logger.error(f"Error changing language: {str(e)}")
+            messagebox.showerror("Error", f"Cannot change language:\n{str(e)}")
     
     def _show_log_viewer(self):
         """Show log viewer window"""
