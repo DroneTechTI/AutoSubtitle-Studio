@@ -1,5 +1,7 @@
 # Subtitle Generator 🎬
 
+> 🌍 **[English version](README_EN.md)** | **[Versione Italiana](README.md)**
+
 Applicazione completa e professionale per generare automaticamente sottotitoli dai tuoi video usando l'intelligenza artificiale, oppure scaricare sottotitoli già esistenti da OpenSubtitles.
 
 ## ✨ Funzionalità Principali
