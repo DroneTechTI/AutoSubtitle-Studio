@@ -273,15 +273,50 @@ class AppController:
             
             raise
     
-    def download_subtitles(self, video_path, language="it", progress_callback=None, cancellation_token=None):
+    def search_subtitles(self, video_path, language="it"):
         """
-        Download subtitles from OpenSubtitles
+        Search for subtitles on OpenSubtitles without downloading
+        
+        Args:
+            video_path: Path to video file
+            language: Language code
+        
+        Returns:
+            List of search results
+        """
+        try:
+            video_path = Path(video_path)
+            
+            # Calculate video hash
+            video_hash = self.opensubtitles.calculate_video_hash(video_path)
+            
+            # Extract search query from filename
+            query = video_path.stem
+            
+            # Search for subtitles
+            results = self.opensubtitles.search_subtitles(
+                query=query,
+                languages=[language],
+                movie_hash=video_hash
+            )
+            
+            logger.info(f"Found {len(results)} subtitle results")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error searching subtitles: {str(e)}")
+            return []
+    
+    def download_subtitles(self, video_path, language="it", progress_callback=None, cancellation_token=None, allow_selection=True):
+        """
+        Download subtitles from OpenSubtitles with optional manual selection
         
         Args:
             video_path: Path to video file
             language: Language code
             progress_callback: Function to call with progress messages
             cancellation_token: Token to check for cancellation requests
+            allow_selection: Show selection dialog if multiple results found
         
         Returns:
             Path to downloaded subtitle file or None
