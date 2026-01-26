@@ -43,7 +43,8 @@ class WhisperEngine(SubtitleEngine):
             self.model = None
             raise
     
-    def generate_subtitles(self, audio_path, language="en", task="transcribe", **kwargs):
+    def generate_subtitles(self, audio_path, language="en", task="transcribe", 
+                          progress_callback=None, **kwargs):
         """
         Generate subtitles using Whisper
         
@@ -51,6 +52,7 @@ class WhisperEngine(SubtitleEngine):
             audio_path: Path to audio file
             language: Language code (ISO 639-1)
             task: 'transcribe' or 'translate' (translate converts to English)
+            progress_callback: Callback function(current, total, message) for progress updates
             **kwargs: Additional Whisper parameters
         
         Returns:
@@ -60,11 +62,34 @@ class WhisperEngine(SubtitleEngine):
             raise RuntimeError("Whisper model not available")
         
         try:
+            import time
             audio_path = Path(audio_path)
             logger.info(f"Generating subtitles with Whisper ({self.model_name})")
             logger.info(f"Language: {language}, Task: {task}")
             
-            # Transcribe audio
+            # Get audio duration for progress estimation
+            audio_duration = self._get_audio_duration(audio_path)
+            logger.info(f"Audio duration: {audio_duration:.1f} seconds")
+            
+            # Estimate processing time (rough approximation)
+            # Whisper processes at roughly 10x-20x real-time depending on model
+            processing_speed_factor = {
+                'tiny': 20,
+                'base': 15,
+                'small': 10,
+                'medium': 5,
+                'large': 3
+            }.get(self.model_name, 10)
+            
+            estimated_time = audio_duration / processing_speed_factor
+            logger.info(f"Estimated processing time: {estimated_time:.1f} seconds")
+            
+            if progress_callback:
+                progress_callback(0, 100, "Inizializzazione trascrizione...")
+            
+            start_time = time.time()
+            
+            # Transcribe audio with verbose for progress
             result = self.model.transcribe(
                 str(audio_path),
                 language=language if language in self.SUPPORTED_LANGUAGES else None,
@@ -73,14 +98,30 @@ class WhisperEngine(SubtitleEngine):
                 **kwargs
             )
             
+            elapsed_time = time.time() - start_time
+            logger.info(f"Transcription completed in {elapsed_time:.1f} seconds")
+            
+            if progress_callback:
+                progress_callback(90, 100, "Elaborazione segmenti...")
+            
             # Extract segments
             segments = []
-            for segment in result.get('segments', []):
+            total_segments = len(result.get('segments', []))
+            
+            for idx, segment in enumerate(result.get('segments', [])):
                 segments.append({
                     'start': segment['start'],
                     'end': segment['end'],
                     'text': segment['text']
                 })
+                
+                # Update progress during segment extraction
+                if progress_callback and idx % 10 == 0:
+                    progress = 90 + int((idx / total_segments) * 10)
+                    progress_callback(progress, 100, f"Elaborazione segmento {idx+1}/{total_segments}")
+            
+            if progress_callback:
+                progress_callback(100, 100, "Trascrizione completata!")
             
             logger.info(f"Generated {len(segments)} subtitle segments")
             return segments
@@ -88,6 +129,17 @@ class WhisperEngine(SubtitleEngine):
         except Exception as e:
             logger.error(f"Error generating subtitles with Whisper: {str(e)}")
             raise
+    
+    def _get_audio_duration(self, audio_path):
+        """Get audio file duration in seconds"""
+        try:
+            import ffmpeg
+            probe = ffmpeg.probe(str(audio_path))
+            duration = float(probe['format']['duration'])
+            return duration
+        except Exception as e:
+            logger.warning(f"Could not get audio duration: {str(e)}")
+            return 0.0
     
     def is_available(self):
         """Check if Whisper model is loaded"""

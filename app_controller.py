@@ -186,9 +186,16 @@ class AppController:
                 cancellation_token.check_cancelled()
             
             whisper = self._get_whisper_engine(model_name)
+            
+            # Progress callback for Whisper
+            def whisper_progress(current, total, message):
+                if progress_callback:
+                    progress_callback(f"   [{current}%] {message}")
+            
             segments = whisper.generate_subtitles(
                 audio_path=audio_path,
-                language=language
+                language=language,
+                progress_callback=whisper_progress
             )
             log(f"✓ Generati {len(segments)} segmenti di sottotitoli")
             
