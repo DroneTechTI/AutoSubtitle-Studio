@@ -122,6 +122,21 @@ class AppController:
             
             log(f"Inizio elaborazione: {video_path.name}")
             
+            # Step 0: Validate video file
+            log("0/3 - Validazione file video...")
+            try:
+                video_info = self.video_validator.validate_video_file(video_path)
+                log(f"✓ Video valido - Durata: {video_info['duration_formatted']}, "
+                    f"Risoluzione: {video_info['width']}x{video_info['height']}")
+                
+                # Show warnings if any
+                for warning in video_info.get('warnings', []):
+                    log(f"⚠️ {warning}")
+                    
+            except VideoValidationError as e:
+                log(f"✗ Validazione fallita: {str(e)}")
+                raise
+            
             # Step 1: Extract audio
             log("1/3 - Estrazione audio dal video...")
             if cancellation_token:
@@ -221,6 +236,14 @@ class AppController:
             
             log(f"Ricerca sottotitoli per: {video_path.name}")
             log(f"Lingua: {language}")
+            
+            # Quick validation (just check file exists and format)
+            try:
+                self.video_validator.quick_check(video_path)
+                log("✓ File video valido")
+            except VideoValidationError as e:
+                log(f"✗ Validazione fallita: {str(e)}")
+                raise
             
             # Calculate video hash
             log("Calcolo hash del video...")
