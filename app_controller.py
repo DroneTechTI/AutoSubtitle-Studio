@@ -8,6 +8,7 @@ import config
 from utils.audio_extractor import AudioExtractor
 from utils.subtitle_formatter import SubtitleFormatter
 from utils.video_validator import VideoValidator, VideoValidationError
+from utils.memory_manager import MemoryManager
 from engines.whisper_engine import WhisperEngine
 from services.opensubtitles_service import OpenSubtitlesService
 
@@ -53,6 +54,7 @@ class AppController:
         self.audio_extractor = AudioExtractor(temp_dir=config.TEMP_DIR)
         self.subtitle_formatter = SubtitleFormatter()
         self.video_validator = VideoValidator()
+        self.memory_manager = MemoryManager()
         
         # Initialize engines (lazy loading for Whisper)
         self.whisper_engine = None
@@ -86,8 +88,18 @@ class AppController:
         """Get or create Whisper engine with specified model"""
         if self.whisper_engine is None or self.current_whisper_model != model_name:
             logger.info(f"Loading Whisper engine with model: {model_name}")
+            
+            # Force garbage collection before loading model
+            if self.whisper_engine is not None:
+                logger.info("Unloading previous model...")
+                del self.whisper_engine
+                self.memory_manager.force_garbage_collection()
+            
             self.whisper_engine = WhisperEngine(model_name=model_name)
             self.current_whisper_model = model_name
+            
+            logger.info(f"Model '{model_name}' loaded successfully")
+            
         return self.whisper_engine
     
     def generate_subtitles(self, video_path, language="it", output_format="srt", 
@@ -136,6 +148,28 @@ class AppController:
             except VideoValidationError as e:
                 log(f"✗ Validazione fallita: {str(e)}")
                 raise
+            
+            # Check memory before loading model
+            log(f"Controllo memoria per modello '{model_name}'...")
+            is_available, available_mb, required_mb, mem_message = \
+                self.memory_manager.check_memory_available(model_name)
+            
+            if not is_available:
+                log("⚠️ MEMORIA INSUFFICIENTE!")
+                log(mem_message)
+                
+                # Suggest alternative
+                suggested_model, suggestion_msg = self.memory_manager.suggest_best_model()
+                log("")
+                log(suggestion_msg)
+                
+                raise MemoryError(
+                    f"Memoria insufficiente per il modello '{model_name}'. "
+                    f"Richiesti ~{required_mb} MB, disponibili {available_mb:.0f} MB. "
+                    f"Prova con il modello '{suggested_model}' o chiudi altre applicazioni."
+                )
+            else:
+                log(f"✓ Memoria sufficiente ({available_mb:.0f} MB disponibili)")
             
             # Step 1: Extract audio
             log("1/3 - Estrazione audio dal video...")
