@@ -10,6 +10,7 @@ from utils.subtitle_formatter import SubtitleFormatter
 from utils.video_validator import VideoValidator, VideoValidationError
 from utils.memory_manager import MemoryManager
 from utils.checkpoint_manager import CheckpointManager
+from utils.notification_manager import NotificationManager
 from engines.whisper_engine import WhisperEngine
 from services.opensubtitles_service import OpenSubtitlesService
 
@@ -57,6 +58,7 @@ class AppController:
         self.video_validator = VideoValidator()
         self.memory_manager = MemoryManager()
         self.checkpoint_manager = CheckpointManager(checkpoint_dir=config.CACHE_DIR / "checkpoints")
+        self.notification_manager = NotificationManager(app_name=config.APP_NAME)
         
         # Initialize engines (lazy loading for Whisper)
         self.whisper_engine = None
@@ -222,12 +224,25 @@ class AppController:
                 self.audio_extractor.cleanup_temp_audio(audio_path)
             
             log("=== COMPLETATO ===")
+            
+            # Show desktop notification
+            self.notification_manager.show_success(
+                f"Sottotitoli generati con successo!\n\nFile: {output_path.name}",
+                title="🎬 Sottotitoli Pronti"
+            )
+            
             return output_path
             
         except OperationCancelledException:
             logger.info("Operation cancelled by user")
             if progress_callback:
                 progress_callback("⚠️ Operazione annullata dall'utente")
+            
+            # Show notification
+            self.notification_manager.show_warning(
+                "Generazione sottotitoli annullata",
+                title="⚠️ Operazione Annullata"
+            )
             
             # Cleanup on cancellation
             if audio_path:
@@ -242,6 +257,12 @@ class AppController:
             logger.error(f"Error generating subtitles: {str(e)}")
             if progress_callback:
                 progress_callback(f"ERRORE: {str(e)}")
+            
+            # Show error notification
+            self.notification_manager.show_error(
+                f"Errore durante la generazione:\n{str(e)[:100]}",
+                title="❌ Errore Generazione"
+            )
             
             # Cleanup on error
             if audio_path:
