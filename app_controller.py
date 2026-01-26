@@ -3,6 +3,7 @@ Main application controller - coordinates all components
 """
 import logging
 from pathlib import Path
+import threading
 import config
 from utils.audio_extractor import AudioExtractor
 from utils.subtitle_formatter import SubtitleFormatter
@@ -10,6 +11,35 @@ from engines.whisper_engine import WhisperEngine
 from services.opensubtitles_service import OpenSubtitlesService
 
 logger = logging.getLogger(__name__)
+
+
+class CancellationToken:
+    """Thread-safe cancellation token for long-running operations"""
+    
+    def __init__(self):
+        self._cancelled = False
+        self._lock = threading.Lock()
+    
+    def cancel(self):
+        """Request cancellation"""
+        with self._lock:
+            self._cancelled = True
+            logger.info("Cancellation requested")
+    
+    def is_cancelled(self):
+        """Check if cancellation was requested"""
+        with self._lock:
+            return self._cancelled
+    
+    def check_cancelled(self):
+        """Raise exception if cancelled"""
+        if self.is_cancelled():
+            raise OperationCancelledException("Operation cancelled by user")
+
+
+class OperationCancelledException(Exception):
+    """Exception raised when operation is cancelled by user"""
+    pass
 
 
 class AppController:
@@ -34,7 +64,21 @@ class AppController:
             api_key=api_key
         )
         
+        # Cancellation token for current operation
+        self.current_cancellation_token = None
+        
         logger.info("AppController initialized")
+    
+    def create_cancellation_token(self):
+        """Create a new cancellation token for an operation"""
+        self.current_cancellation_token = CancellationToken()
+        return self.current_cancellation_token
+    
+    def cancel_current_operation(self):
+        """Cancel the current operation if any"""
+        if self.current_cancellation_token:
+            self.current_cancellation_token.cancel()
+            logger.info("Current operation cancellation requested")
     
     def _get_whisper_engine(self, model_name="base"):
         """Get or create Whisper engine with specified model"""
@@ -45,7 +89,7 @@ class AppController:
         return self.whisper_engine
     
     def generate_subtitles(self, video_path, language="it", output_format="srt", 
-                          model_name="base", progress_callback=None):
+                          model_name="base", progress_callback=None, cancellation_token=None):
         """
         Generate subtitles from video file
         
@@ -55,10 +99,13 @@ class AppController:
             output_format: Subtitle format (srt or vtt)
             model_name: Whisper model to use
             progress_callback: Function to call with progress messages
+            cancellation_token: Token to check for cancellation requests
         
         Returns:
             Path to generated subtitle file
         """
+        audio_path = None
+        
         try:
             video_path = Path(video_path)
             
@@ -67,16 +114,25 @@ class AppController:
                 if progress_callback:
                     progress_callback(message)
             
+            # Check cancellation before starting
+            if cancellation_token:
+                cancellation_token.check_cancelled()
+            
             log(f"Inizio elaborazione: {video_path.name}")
             
             # Step 1: Extract audio
             log("1/3 - Estrazione audio dal video...")
+            if cancellation_token:
+                cancellation_token.check_cancelled()
+            
             audio_path = self.audio_extractor.extract_audio(video_path)
             log(f"✓ Audio estratto: {audio_path.name}")
             
             # Step 2: Generate subtitles with Whisper
             log(f"2/3 - Generazione sottotitoli (modello: {model_name})...")
             log("⏳ Questo potrebbe richiedere alcuni minuti...")
+            if cancellation_token:
+                cancellation_token.check_cancelled()
             
             whisper = self._get_whisper_engine(model_name)
             segments = whisper.generate_subtitles(
@@ -87,6 +143,9 @@ class AppController:
             
             # Step 3: Export subtitles
             log(f"3/3 - Esportazione sottotitoli in formato {output_format.upper()}...")
+            if cancellation_token:
+                cancellation_token.check_cancelled()
+            
             output_filename = f"{video_path.stem}.{output_format}"
             output_path = config.OUTPUT_DIR / output_filename
             
@@ -99,18 +158,41 @@ class AppController:
             
             # Cleanup
             log("Pulizia file temporanei...")
-            self.audio_extractor.cleanup_temp_audio(audio_path)
+            if audio_path:
+                self.audio_extractor.cleanup_temp_audio(audio_path)
             
             log("=== COMPLETATO ===")
             return output_path
+            
+        except OperationCancelledException:
+            logger.info("Operation cancelled by user")
+            if progress_callback:
+                progress_callback("⚠️ Operazione annullata dall'utente")
+            
+            # Cleanup on cancellation
+            if audio_path:
+                try:
+                    self.audio_extractor.cleanup_temp_audio(audio_path)
+                except:
+                    pass
+            
+            raise
             
         except Exception as e:
             logger.error(f"Error generating subtitles: {str(e)}")
             if progress_callback:
                 progress_callback(f"ERRORE: {str(e)}")
+            
+            # Cleanup on error
+            if audio_path:
+                try:
+                    self.audio_extractor.cleanup_temp_audio(audio_path)
+                except:
+                    pass
+            
             raise
     
-    def download_subtitles(self, video_path, language="it", progress_callback=None):
+    def download_subtitles(self, video_path, language="it", progress_callback=None, cancellation_token=None):
         """
         Download subtitles from OpenSubtitles
         
@@ -118,6 +200,7 @@ class AppController:
             video_path: Path to video file
             language: Language code
             progress_callback: Function to call with progress messages
+            cancellation_token: Token to check for cancellation requests
         
         Returns:
             Path to downloaded subtitle file or None
@@ -130,11 +213,18 @@ class AppController:
                 if progress_callback:
                     progress_callback(message)
             
+            # Check cancellation before starting
+            if cancellation_token:
+                cancellation_token.check_cancelled()
+            
             log(f"Ricerca sottotitoli per: {video_path.name}")
             log(f"Lingua: {language}")
             
             # Calculate video hash
             log("Calcolo hash del video...")
+            if cancellation_token:
+                cancellation_token.check_cancelled()
+            
             video_hash = self.opensubtitles.calculate_video_hash(video_path)
             
             if video_hash:
@@ -148,6 +238,8 @@ class AppController:
             # Search for subtitles with multiple strategies
             log("Ricerca su OpenSubtitles.com...")
             log(f"Termine di ricerca: '{query}'")
+            if cancellation_token:
+                cancellation_token.check_cancelled()
             results = self.opensubtitles.search_subtitles(
                 video_path=video_path,
                 query=query,
