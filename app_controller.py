@@ -7,6 +7,7 @@ import threading
 import config
 from utils.audio_extractor import AudioExtractor
 from utils.subtitle_formatter import SubtitleFormatter
+from utils.video_validator import VideoValidator, VideoValidationError
 from engines.whisper_engine import WhisperEngine
 from services.opensubtitles_service import OpenSubtitlesService
 
@@ -51,6 +52,7 @@ class AppController:
         # Initialize components
         self.audio_extractor = AudioExtractor(temp_dir=config.TEMP_DIR)
         self.subtitle_formatter = SubtitleFormatter()
+        self.video_validator = VideoValidator()
         
         # Initialize engines (lazy loading for Whisper)
         self.whisper_engine = None
@@ -279,6 +281,8 @@ class AppController:
             
             # Try to download subtitle
             log("Tentativo di download...")
+            if cancellation_token:
+                cancellation_token.check_cancelled()
             
             # Check if we have API key
             if self.opensubtitles.api_key:
