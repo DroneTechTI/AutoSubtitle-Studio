@@ -9,6 +9,7 @@ from utils.audio_extractor import AudioExtractor
 from utils.subtitle_formatter import SubtitleFormatter
 from utils.video_validator import VideoValidator, VideoValidationError
 from utils.memory_manager import MemoryManager
+from utils.checkpoint_manager import CheckpointManager
 from engines.whisper_engine import WhisperEngine
 from services.opensubtitles_service import OpenSubtitlesService
 
@@ -55,6 +56,7 @@ class AppController:
         self.subtitle_formatter = SubtitleFormatter()
         self.video_validator = VideoValidator()
         self.memory_manager = MemoryManager()
+        self.checkpoint_manager = CheckpointManager(checkpoint_dir=config.CACHE_DIR / "checkpoints")
         
         # Initialize engines (lazy loading for Whisper)
         self.whisper_engine = None
