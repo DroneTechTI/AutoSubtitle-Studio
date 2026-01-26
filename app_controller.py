@@ -11,6 +11,7 @@ from utils.video_validator import VideoValidator, VideoValidationError
 from utils.memory_manager import MemoryManager
 from utils.checkpoint_manager import CheckpointManager
 from utils.notification_manager import NotificationManager
+from utils.multilang_generator import MultiLanguageGenerator
 from engines.whisper_engine import WhisperEngine
 from services.opensubtitles_service import OpenSubtitlesService
 
@@ -74,6 +75,9 @@ class AppController:
         
         # Cancellation token for current operation
         self.current_cancellation_token = None
+        
+        # Multi-language generator
+        self.multilang_generator = MultiLanguageGenerator(self)
         
         logger.info("AppController initialized")
     
