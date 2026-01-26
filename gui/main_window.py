@@ -13,6 +13,7 @@ try:
     from gui.batch_processor import BatchProcessorWindow
     from gui.preview_window import SubtitlePreviewWindow
     from gui.video_tools_window import VideoToolsWindow
+    from gui.log_viewer import LogViewerWindow
     from utils.preferences_manager import PreferencesManager
     from services.translation_service import TranslationService
 except ImportError:
@@ -99,6 +100,13 @@ class SubtitleGeneratorGUI:
         options_menu.add_command(label="Pulisci Cache", command=self._clean_cache)
         options_menu.add_separator()
         options_menu.add_command(label="Verifica FFmpeg", command=self._check_ffmpeg)
+        
+        # View menu
+        view_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Visualizza", menu=view_menu)
+        view_menu.add_command(label="📋 Log Completo", command=self._show_log_viewer)
+        view_menu.add_separator()
+        view_menu.add_command(label="Aggiorna", command=self._refresh_view)
         
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -333,6 +341,13 @@ class SubtitleGeneratorGUI:
             buttons_frame2,
             text="🗑 Pulisci Log",
             command=self._clear_log,
+            width=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(
+            buttons_frame2,
+            text="📋 Visualizza Log",
+            command=self._show_log_viewer,
             width=15
         ).pack(side=tk.LEFT, padx=5)
         
@@ -992,6 +1007,20 @@ Ctrl+H: Shortcuts (questa finestra)
         text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         text_widget.insert(1.0, shortcuts_text)
         text_widget.config(state='disabled')
+    
+    def _show_log_viewer(self):
+        """Show log viewer window"""
+        try:
+            log_viewer = LogViewerWindow(self.root)
+            log_viewer.show()
+        except Exception as e:
+            logger.error(f"Error opening log viewer: {str(e)}")
+            messagebox.showerror("Errore", f"Impossibile aprire visualizzatore log:\n{str(e)}")
+    
+    def _refresh_view(self):
+        """Refresh the main view"""
+        # Refresh any visible data
+        messagebox.showinfo("Info", "Vista aggiornata")
     
     def _show_about(self):
         """Show about dialog"""

@@ -16,21 +16,32 @@ class AutoSync:
     def __init__(self):
         pass
     
-    def detect_speech_timestamps(self, audio_path, max_duration=300):
+    def detect_speech_timestamps(self, audio_path, max_duration=300, use_preprocessing=True):
         """
-        Detect speech timestamps in audio using Whisper
+        Detect speech timestamps in audio using Whisper with optional preprocessing
         
         Args:
             audio_path: Path to audio file
             max_duration: Maximum duration to analyze (seconds)
+            use_preprocessing: Apply audio preprocessing for better accuracy
         
         Returns:
             List of speech timestamps
         """
         try:
             import whisper
+            from utils.audio_preprocessor import AudioPreprocessor
             
             logger.info("Detecting speech patterns in audio...")
+            
+            # Preprocess audio if enabled
+            processed_audio = audio_path
+            if use_preprocessing:
+                logger.info("Applying audio preprocessing for better accuracy...")
+                preprocessor = AudioPreprocessor()
+                processed_audio = preprocessor.preprocess_for_sync(audio_path)
+                logger.info("✓ Audio preprocessing completed")
+            
             logger.info("This may take 1-2 minutes for accurate analysis...")
             
             # Load base model for better accuracy (tiny was too imprecise)
@@ -38,12 +49,20 @@ class AutoSync:
             
             # Transcribe with timestamps and word-level timing
             result = model.transcribe(
-                str(audio_path),
+                str(processed_audio),
                 task="transcribe",
                 language=None,
                 verbose=False,
                 word_timestamps=False  # Segment-level is more stable
             )
+            
+            # Cleanup preprocessed file if different from original
+            if use_preprocessing and processed_audio != audio_path:
+                try:
+                    Path(processed_audio).unlink()
+                    logger.debug("Cleaned up preprocessed audio file")
+                except:
+                    pass
             
             # Extract timestamps with filtering
             speech_times = []
