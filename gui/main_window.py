@@ -14,6 +14,7 @@ try:
     from gui.preview_window import SubtitlePreviewWindow
     from gui.video_tools_window import VideoToolsWindow
     from gui.log_viewer import LogViewerWindow
+    from gui.multilang_window import MultiLanguageWindow
     from utils.preferences_manager import PreferencesManager
     from services.translation_service import TranslationService
 except ImportError:
@@ -85,6 +86,8 @@ class SubtitleGeneratorGUI:
         # Tools menu
         tools_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Strumenti", menu=tools_menu)
+        tools_menu.add_command(label="🌍 Multi-Lingua", command=self._open_multilang_window)
+        tools_menu.add_separator()
         tools_menu.add_command(label="Batch Processing", command=self._open_batch_processor)
         tools_menu.add_command(label="Integra Video", command=self._open_video_tools)
         tools_menu.add_command(label="Pulisci Sottotitoli", command=self._clean_subtitles)
@@ -330,6 +333,13 @@ class SubtitleGeneratorGUI:
             buttons_frame,
             text="🎬 Integra Video",
             command=self._open_video_tools,
+            width=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(
+            buttons_frame,
+            text="🌍 Multi-Lingua",
+            command=self._open_multilang_window,
             width=15
         ).pack(side=tk.LEFT, padx=5)
         
@@ -1007,6 +1017,15 @@ Ctrl+H: Shortcuts (questa finestra)
         text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         text_widget.insert(1.0, shortcuts_text)
         text_widget.config(state='disabled')
+    
+    def _open_multilang_window(self):
+        """Open multi-language generation window"""
+        try:
+            video_path = self.video_path.get() if self.video_path.get() else None
+            MultiLanguageWindow(self.root, self.controller, video_path)
+        except Exception as e:
+            logger.error(f"Error opening multi-language window: {str(e)}")
+            messagebox.showerror("Errore", f"Impossibile aprire finestra multi-lingua:\n{str(e)}")
     
     def _show_log_viewer(self):
         """Show log viewer window"""
