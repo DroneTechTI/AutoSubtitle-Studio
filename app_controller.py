@@ -391,11 +391,18 @@ class AppController:
             
             log(f"[OK] Trovati {len(results)} risultati")
             
-            # Get best match
-            best_match = results[0]
-            attrs = best_match.get('attributes', {})
+            # Allow user to select if multiple results and selection enabled
+            selected_result = None
+            if allow_selection and len(results) > 1:
+                log("💡 Mostrando finestra di selezione...")
+                # This will be called from GUI, which will handle the selection dialog
+                return results  # Return results for GUI to show selection dialog
+            
+            # Get best match (or only result)
+            selected_result = results[0]
+            attrs = selected_result.get('attributes', {})
             file_name = attrs.get('release', 'Unknown')
-            log(f"Migliore corrispondenza: {file_name}")
+            log(f"Sottotitolo selezionato: {file_name}")
             
             # Determine output path
             output_dir = config.OUTPUT_DIR
@@ -414,6 +421,13 @@ class AppController:
                         file_id = files[0]['file_id']
                         result = self.opensubtitles.download_subtitle(file_id, output_path)
                         log(f"[OK] Sottotitolo scaricato: {result}")
+                        
+                        # Show success notification
+                        self.notification_manager.show_success(
+                            f"Sottotitolo scaricato con successo!\n\nFile: {output_path.name}",
+                            title="🌐 Download Completato"
+                        )
+                        
                         return result
                 except Exception as e:
                     log(f"[!] Errore download con API: {str(e)}")

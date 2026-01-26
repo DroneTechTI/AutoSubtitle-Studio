@@ -1,6 +1,8 @@
-# Subtitle Generator 🎬
+# AutoSubtitle Studio 🎬
 
 > 🌍 **[English version](README_EN.md)** | **[Versione Italiana](README.md)**
+
+**Studio professionale per la generazione automatica di sottotitoli** con intelligenza artificiale, download da OpenSubtitles, sincronizzazione avanzata e molto altro.
 
 Applicazione completa e professionale per generare automaticamente sottotitoli dai tuoi video usando l'intelligenza artificiale, oppure scaricare sottotitoli già esistenti da OpenSubtitles.
 
