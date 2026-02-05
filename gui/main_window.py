@@ -196,23 +196,32 @@ class SubtitleGeneratorGUI:
             logger.warning(f"Could not setup keyboard shortcuts: {str(e)}")
 
     def _setup_ui(self):
-        """Setup the user interface"""
-        # Main container
-        main_frame = ttk.Frame(self.root, padding="10")
+        """Setup the user interface with clean, modern layout"""
+        # Main container with consistent padding
+        main_frame = ttk.Frame(self.root, padding="15")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Configure grid weights
+
+        # Configure grid weights for responsive layout
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         
-        # Title
+        # Title with better spacing
         title_label = ttk.Label(
-            main_frame, 
-            text="🎬 Subtitle Generator", 
-            font=('Arial', 16, 'bold')
+            main_frame,
+            text="🎬 AutoSubtitle Studio",
+            font=('Arial', 18, 'bold')
         )
-        title_label.grid(row=0, column=0, columnspan=3, pady=10)
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 15))
+
+        # Subtitle
+        subtitle_label = ttk.Label(
+            main_frame,
+            text="Generazione Automatica Sottotitoli con AI",
+            font=('Arial', 9, 'italic'),
+            foreground='#64748b'
+        )
+        subtitle_label.grid(row=1, column=0, columnspan=3, pady=(0, 20))
         
         # Video file selection with enhanced UX
         video_label = ttk.Label(main_frame, text="File Video:", font=('Arial', 10))
