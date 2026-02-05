@@ -3,7 +3,6 @@ Subtitle formatting utilities for SRT and VTT formats
 """
 import logging
 from pathlib import Path
-from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -14,21 +13,29 @@ class SubtitleFormatter:
     @staticmethod
     def format_timestamp_srt(seconds):
         """Format timestamp for SRT format (HH:MM:SS,mmm)"""
-        td = timedelta(seconds=seconds)
-        hours = td.seconds // 3600
-        minutes = (td.seconds % 3600) // 60
-        secs = td.seconds % 60
-        millis = td.microseconds // 1000
+        # Convert float seconds to integer seconds and milliseconds
+        total_seconds = int(seconds)
+        millis = int((seconds - total_seconds) * 1000)
+
+        # Calculate hours, minutes, seconds from total
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        secs = total_seconds % 60
+
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
     
     @staticmethod
     def format_timestamp_vtt(seconds):
         """Format timestamp for VTT format (HH:MM:SS.mmm)"""
-        td = timedelta(seconds=seconds)
-        hours = td.seconds // 3600
-        minutes = (td.seconds % 3600) // 60
-        secs = td.seconds % 60
-        millis = td.microseconds // 1000
+        # Convert float seconds to integer seconds and milliseconds
+        total_seconds = int(seconds)
+        millis = int((seconds - total_seconds) * 1000)
+
+        # Calculate hours, minutes, seconds from total
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        secs = total_seconds % 60
+
         return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
     
     def export_srt(self, segments, output_path):
