@@ -10,6 +10,15 @@ import json
 logger = logging.getLogger(__name__)
 
 
+# Synchronization constants
+MIN_SEGMENT_DURATION = 0.3  # Minimum segment duration in seconds to filter noise
+OFFSET_SEARCH_RESOLUTION = 0.05  # Resolution for offset search in seconds
+MAX_SEGMENT_DISTANCE = 2.0  # Maximum distance in seconds for segment matching
+MIN_MATCH_RATIO = 0.5  # Minimum ratio of matched segments for valid offset
+SYNC_THRESHOLD = 0.5  # Threshold in seconds to consider subtitles synced
+OFFSET_PRECISION = 0.05  # Rounding precision for final offset
+
+
 class AutoSync:
     """Automatically synchronize subtitles with video audio"""
     
@@ -69,7 +78,7 @@ class AutoSync:
             for segment in result.get('segments', []):
                 # Filter out very short segments (likely noise)
                 duration = segment['end'] - segment['start']
-                if duration > 0.3:  # At least 0.3 seconds
+                if duration > MIN_SEGMENT_DURATION:
                     speech_times.append({
                         'start': segment['start'],
                         'end': segment['end'],
@@ -199,7 +208,7 @@ class AutoSync:
                 
                 final_offset = calibrated_offset
                 
-                if abs(final_offset) < 0.1:
+                if abs(final_offset) < SYNC_THRESHOLD / 5:  # Very small offset
                     logger.info("Subtitles already in sync!")
                     import shutil
                     shutil.copy(subtitle_path, output_path)
@@ -330,42 +339,49 @@ class AutoSync:
     
     def _validate_offset_direction(self, offset, subtitle_times, speech_times):
         """
-        Validate offset direction is correct
-        
+        Validate offset direction for sanity check
+
+        NOTE: This is a sanity check based on first segment only.
+        Cross-correlation uses ALL segments and is more accurate, so we don't
+        auto-correct here - just warn if there's a discrepancy.
+
         If subtitles come AFTER speech in the video, offset should be NEGATIVE (move subtitles earlier)
         If subtitles come BEFORE speech in the video, offset should be POSITIVE (move subtitles later)
         """
         try:
             if len(subtitle_times) == 0 or len(speech_times) == 0:
                 return offset
-            
+
             first_sub = subtitle_times[0]['start']
             first_speech = speech_times[0]['start']
-            
-            logger.info(f"Validation check:")
+
+            logger.info(f"Validation check (first segment):")
             logger.info(f"  First subtitle appears at: {first_sub:.2f}s")
             logger.info(f"  First speech detected at: {first_speech:.2f}s")
             logger.info(f"  Calculated offset: {offset:+.2f}s")
-            
+
             # Logic explanation:
             # If first_sub > first_speech: subtitles are LATE, need to move them EARLIER (negative offset)
             # If first_sub < first_speech: subtitles are EARLY, need to move them LATER (positive offset)
-            
+
             expected_sign = 1 if first_speech > first_sub else -1
             actual_sign = 1 if offset > 0 else -1
-            
-            if expected_sign != actual_sign and abs(offset) > 0.5:
-                logger.warning(f"  ⚠️ Offset direction seems incorrect!")
-                logger.warning(f"  Expected: {'positive' if expected_sign > 0 else 'negative'}")
-                logger.warning(f"  Got: {'positive' if actual_sign > 0 else 'negative'}")
-                logger.warning(f"  Inverting offset sign...")
-                offset = -offset
-                logger.info(f"  Corrected offset: {offset:+.2f}s")
+
+            # Calculate simple first-segment offset for comparison
+            simple_offset = first_speech - first_sub
+
+            if expected_sign != actual_sign and abs(offset) > SYNC_THRESHOLD:
+                logger.warning(f"  ⚠️ Offset direction differs from first segment!")
+                logger.warning(f"  First segment suggests: {simple_offset:+.2f}s")
+                logger.warning(f"  Cross-correlation found: {offset:+.2f}s")
+                logger.warning(f"  → Trusting cross-correlation (uses all segments)")
+                logger.warning(f"  → If subtitles are still out of sync, try manual adjustment")
             else:
-                logger.info(f"  ✓ Offset direction validated as correct")
-            
+                logger.info(f"  ✓ Offset direction consistent with first segment")
+
+            # Return offset unchanged - trust cross-correlation
             return offset
-            
+
         except Exception as e:
             logger.error(f"Error validating offset direction: {str(e)}")
             return offset
@@ -420,8 +436,8 @@ class AutoSync:
             # Expand search range if first method suggests large offset
             search_range = max(max_offset, abs(offset_method1) + 10)
             
-            # Try offsets with higher resolution
-            test_offsets = np.arange(-search_range, search_range, 0.05)
+            # Try offsets with defined resolution
+            test_offsets = np.arange(-search_range, search_range, OFFSET_SEARCH_RESOLUTION)
             
             for offset in test_offsets:
                 # Calculate alignment score
@@ -435,14 +451,14 @@ class AutoSync:
                     if len(speech_starts) > 0:
                         distances = np.abs(speech_starts - adjusted_sub)
                         min_dist = np.min(distances)
-                        
-                        # Only count if within 2 seconds
-                        if min_dist < 2.0:
+
+                        # Only count if within maximum distance
+                        if min_dist < MAX_SEGMENT_DISTANCE:
                             score += min_dist
                             matched += 1
-                
+
                 # Penalize if too few matches
-                if matched < sample_size * 0.5:
+                if matched < sample_size * MIN_MATCH_RATIO:
                     score += 1000
                 else:
                     score = score / matched  # Average distance
@@ -490,8 +506,8 @@ class AutoSync:
                     # Use weighted average (more weight to cross-correlation)
                     best_offset = (best_offset * 0.7 + mid_offset * 0.3)
             
-            # Round to nearest 0.05 second for precision
-            best_offset = round(best_offset * 20) / 20
+            # Round to defined precision
+            best_offset = round(best_offset / OFFSET_PRECISION) * OFFSET_PRECISION
             
             logger.info(f"=" * 60)
             logger.info(f"FINAL OFFSET: {best_offset:+.2f}s")
@@ -537,8 +553,8 @@ class AutoSync:
                 # Calculate offset
                 offset = self.calculate_offset(subtitle_path, audio_path)
                 
-                # Consider synced if offset is less than 0.5 seconds
-                is_synced = abs(offset) < 0.5
+                # Consider synced if offset is less than threshold
+                is_synced = abs(offset) < SYNC_THRESHOLD
                 
                 return is_synced, offset
                 
