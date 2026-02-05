@@ -15,6 +15,7 @@ try:
     from gui.video_tools_window import VideoToolsWindow
     from gui.log_viewer import LogViewerWindow
     from gui.multilang_window import MultiLanguageWindow
+    from gui.opensubtitles_selector import OpenSubtitlesSelectorWindow
     from utils.preferences_manager import PreferencesManager
     from utils.i18n import get_i18n, t
     from services.translation_service import TranslationService
@@ -500,28 +501,65 @@ class SubtitleGeneratorGUI:
                 
             else:
                 # Download subtitles
-                self._update_status("Download sottotitoli da OpenSubtitles...", 'blue')
-                self._log("=== Inizio download sottotitoli ===")
-                
+                self._update_status("Ricerca sottotitoli su OpenSubtitles...", 'blue')
+                self._log("=== Inizio ricerca sottotitoli ===")
+
                 result = self.controller.download_subtitles(
                     video_path=video_path,
                     language=language,
-                    progress_callback=self._log
+                    progress_callback=self._log,
+                    allow_selection=True  # Enable selection dialog
                 )
-            
+
+                # Check if result is a list (multiple results found)
+                if isinstance(result, list):
+                    self._log(f"💡 Trovati {len(result)} sottotitoli - selezione manuale richiesta")
+                    self._update_status("Seleziona sottotitolo desiderato...", 'orange')
+
+                    # Show selection window
+                    selector = OpenSubtitlesSelectorWindow(self.root, result, self.controller)
+                    selected = selector.show()
+
+                    if not selected:
+                        self._update_status("Operazione annullata", 'orange')
+                        self._log("✗ Selezione annullata dall'utente")
+                        return
+
+                    # Download the selected subtitle
+                    self._log(f"Download sottotitolo selezionato...")
+                    self._update_status("Download in corso...", 'blue')
+
+                    # Download selected subtitle directly
+                    try:
+                        attributes = selected.get('attributes', {})
+                        files = attributes.get('files', [])
+                        if files and files[0].get('file_id'):
+                            file_id = files[0]['file_id']
+                            video_stem = Path(video_path).stem
+                            output_path = self.controller.config.OUTPUT_DIR / f"{video_stem}.srt"
+
+                            result = self.controller.opensubtitles.download_subtitle(file_id, output_path)
+                        else:
+                            raise Exception("File ID non disponibile per il download")
+                    except Exception as e:
+                        self._log(f"✗ Errore download: {str(e)}")
+                        self._update_status("✗ Download fallito", 'red')
+                        messagebox.showerror("Errore Download", f"Impossibile scaricare il sottotitolo:\n{str(e)}")
+                        return
+
             if result:
                 self._update_status("✓ Completato con successo!", 'green')
                 self._log(f"✓ Sottotitoli salvati in: {result}")
                 self.last_subtitle_path = result
                 self.preview_btn.config(state='normal')
-                
+
                 # Update recent videos in preferences
                 if self.preferences:
                     self.preferences.update_last_videos(video_path)
-                
+
                 messagebox.showinfo(
-                    "Successo", 
-                    f"Sottotitoli creati con successo!\n\n{result}"
+                    "Successo",
+                    f"Sottotitoli creati con successo!\n\nFile: {Path(result).name}\nCartella: {Path(result).parent}"
                 )
             else:
                 self._update_status("✗ Operazione fallita", 'red')
