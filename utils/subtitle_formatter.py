@@ -3,15 +3,16 @@ Subtitle formatting utilities for SRT and VTT formats
 """
 import logging
 from pathlib import Path
+from typing import List, Dict, Union
 
 logger = logging.getLogger(__name__)
 
 
 class SubtitleFormatter:
     """Format and export subtitles in different formats"""
-    
+
     @staticmethod
-    def format_timestamp_srt(seconds):
+    def format_timestamp_srt(seconds: float) -> str:
         """Format timestamp for SRT format (HH:MM:SS,mmm)"""
         # Convert float seconds to integer seconds and milliseconds
         total_seconds = int(seconds)
@@ -25,7 +26,7 @@ class SubtitleFormatter:
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
     
     @staticmethod
-    def format_timestamp_vtt(seconds):
+    def format_timestamp_vtt(seconds: float) -> str:
         """Format timestamp for VTT format (HH:MM:SS.mmm)"""
         # Convert float seconds to integer seconds and milliseconds
         total_seconds = int(seconds)
@@ -38,7 +39,7 @@ class SubtitleFormatter:
 
         return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
     
-    def export_srt(self, segments, output_path):
+    def export_srt(self, segments: List[Dict[str, Union[float, str]]], output_path: Union[str, Path]) -> Path:
         """
         Export subtitles in SRT format
         
@@ -66,7 +67,7 @@ class SubtitleFormatter:
             logger.error(f"Error creating SRT file: {str(e)}")
             raise
     
-    def export_vtt(self, segments, output_path):
+    def export_vtt(self, segments: List[Dict[str, Union[float, str]]], output_path: Union[str, Path]) -> Path:
         """
         Export subtitles in VTT (WebVTT) format
         
@@ -96,7 +97,7 @@ class SubtitleFormatter:
             logger.error(f"Error creating VTT file: {str(e)}")
             raise
     
-    def export(self, segments, output_path, format_type="srt"):
+    def export(self, segments: List[Dict[str, Union[float, str]]], output_path: Union[str, Path], format_type: str = "srt") -> Path:
         """
         Export subtitles in specified format
         

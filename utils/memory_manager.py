@@ -2,6 +2,7 @@
 Memory management utilities to prevent out-of-memory errors
 """
 import logging
+from typing import Tuple, Dict
 import psutil
 import gc
 
@@ -26,10 +27,10 @@ class MemoryManager:
     def __init__(self):
         pass
     
-    def get_available_memory(self):
+    def get_available_memory(self) -> float:
         """
         Get available system memory in MB
-        
+
         Returns:
             Available memory in MB
         """
@@ -70,7 +71,7 @@ class MemoryManager:
             logger.error(f"Error getting memory usage: {str(e)}")
             return 0
     
-    def check_memory_available(self, model_name='base'):
+    def check_memory_available(self, model_name: str = 'base') -> Tuple[bool, float, int, str]:
         """
         Check if enough memory is available for the specified Whisper model
         
@@ -115,7 +116,7 @@ class MemoryManager:
         
         return is_available, available_mb, required_mb, message
     
-    def suggest_best_model(self):
+    def suggest_best_model(self) -> Tuple[str, str]:
         """
         Suggest the best Whisper model based on available memory
         
@@ -187,7 +188,7 @@ class MemoryManager:
         except Exception as e:
             logger.error(f"Error logging memory status: {str(e)}")
     
-    def get_memory_info_dict(self):
+    def get_memory_info_dict(self) -> Dict[str, float]:
         """
         Get memory information as dictionary
         
