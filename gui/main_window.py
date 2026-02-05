@@ -71,6 +71,14 @@ class SubtitleGeneratorGUI:
         }
         import time
         self.session_stats['start_time'] = time.time()
+
+        # Progress tracking
+        self.progress_data = {
+            'current': 0,
+            'total': 100,
+            'start_time': None,
+            'current_operation': ''
+        }
         
         # Trace variables to auto-save preferences
         if self.preferences:
@@ -352,24 +360,44 @@ class SubtitleGeneratorGUI:
         )
         model_info.grid(row=2, column=2, sticky=tk.W, padx=5)
         
-        # Progress frame
+        # Progress frame with enhanced visual feedback
         progress_frame = ttk.LabelFrame(main_frame, text="Progresso", padding="10")
         progress_frame.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
         progress_frame.columnconfigure(0, weight=1)
-        
+
+        # Progress bar with determinate mode for percentage display
         self.progress_bar = ttk.Progressbar(
-            progress_frame, 
-            mode='indeterminate',
+            progress_frame,
+            mode='determinate',
+            maximum=100,
             length=400
         )
         self.progress_bar.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=5)
-        
+
+        # Percentage label overlay on progress bar
+        self.progress_percent_label = ttk.Label(
+            progress_frame,
+            text="0%",
+            font=('Arial', 9, 'bold')
+        )
+        self.progress_percent_label.grid(row=0, column=0, pady=5)
+
+        # Status label with operation details
         self.status_label = ttk.Label(
             progress_frame,
             text="Pronto. Seleziona un video per iniziare.",
             foreground='green'
         )
         self.status_label.grid(row=1, column=0, pady=5)
+
+        # ETA label for time estimation
+        self.eta_label = ttk.Label(
+            progress_frame,
+            text="",
+            font=('Arial', 8),
+            foreground='#64748b'
+        )
+        self.eta_label.grid(row=2, column=0, pady=(0, 5))
         
         # Log output
         log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
@@ -707,11 +735,37 @@ class SubtitleGeneratorGUI:
         self.language_name_label.config(text=lang_name)
     
     def _log(self, message):
-        """Add message to log"""
+        """Add message to log and update progress if percentage found"""
         self.log_text.config(state='normal')
         self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
         self.log_text.config(state='disabled')
+
+        # Parse progress from message (format: "X/Y - message" or "[X%] message" or "X% - message")
+        import re
+
+        # Try to extract progress percentage
+        # Format 1: "1/3 - Estrazione audio..."
+        match = re.search(r'(\d+)/(\d+)', message)
+        if match:
+            current = int(match.group(1))
+            total = int(match.group(2))
+            self._update_progress(current, total)
+            return
+
+        # Format 2: "[90%] message" or "90% - message"
+        match = re.search(r'[\[\(]?(\d+)%[\]\)]?', message)
+        if match:
+            percentage = int(match.group(1))
+            self._update_progress(percentage, 100)
+            return
+
+        # Format 3: "Elaborazione segmento X/Y"
+        match = re.search(r'segmento\s+(\d+)/(\d+)', message, re.IGNORECASE)
+        if match:
+            current = int(match.group(1))
+            total = int(match.group(2))
+            self._update_progress(current, total)
     
     def _clear_log(self):
         """Clear log text"""
@@ -722,6 +776,84 @@ class SubtitleGeneratorGUI:
     def _update_status(self, message, color='black'):
         """Update status label"""
         self.status_label.config(text=message, foreground=color)
+
+    def _update_progress(self, current, total=100, operation="Elaborazione..."):
+        """
+        Update progress bar with percentage and ETA
+
+        Args:
+            current: Current progress value
+            total: Total progress value (default 100)
+            operation: Current operation description
+        """
+        try:
+            import time
+
+            # Calculate percentage
+            if total > 0:
+                percentage = int((current / total) * 100)
+            else:
+                percentage = 0
+
+            percentage = max(0, min(100, percentage))  # Clamp to 0-100
+
+            # Update progress bar
+            self.progress_bar['value'] = percentage
+
+            # Update percentage label
+            self.progress_percent_label.config(text=f"{percentage}%")
+
+            # Calculate ETA if progress started
+            if self.progress_data['start_time'] and current > 0 and current < total:
+                elapsed = time.time() - self.progress_data['start_time']
+                rate = current / elapsed
+                remaining = (total - current) / rate if rate > 0 else 0
+
+                # Format ETA
+                if remaining < 60:
+                    eta_text = f"⏱ ETA: {int(remaining)}s"
+                elif remaining < 3600:
+                    eta_text = f"⏱ ETA: {int(remaining / 60)}m {int(remaining % 60)}s"
+                else:
+                    hours = int(remaining / 3600)
+                    minutes = int((remaining % 3600) / 60)
+                    eta_text = f"⏱ ETA: {hours}h {minutes}m"
+
+                self.eta_label.config(text=eta_text)
+            elif current == 0:
+                self.eta_label.config(text="")
+            elif current >= total:
+                self.eta_label.config(text="✓ Completato!")
+
+            # Update stored progress
+            self.progress_data['current'] = current
+            self.progress_data['total'] = total
+            self.progress_data['current_operation'] = operation
+
+            # Force GUI update
+            self.root.update_idletasks()
+
+        except Exception as e:
+            logger.debug(f"Error updating progress: {str(e)}")
+
+    def _start_progress(self, operation="Elaborazione..."):
+        """Start progress tracking"""
+        import time
+        self.progress_data['start_time'] = time.time()
+        self.progress_data['current_operation'] = operation
+        self._update_progress(0, 100, operation)
+
+    def _reset_progress(self):
+        """Reset progress bar to initial state"""
+        self.progress_bar['value'] = 0
+        self.progress_percent_label.config(text="0%")
+        self.eta_label.config(text="")
+        self.progress_data = {
+            'current': 0,
+            'total': 100,
+            'start_time': None,
+            'current_operation': ''
+        }
     
     def _start_processing(self):
         """Start subtitle generation/download"""
@@ -739,10 +871,12 @@ class SubtitleGeneratorGUI:
         self.start_btn.config(state='disabled')
         self.cancel_btn.config(state='normal')
         self.is_processing = True
-        
-        # Start progress bar
-        self.progress_bar.start(10)
-        
+
+        # Start progress tracking with percentage
+        mode = self.mode.get()
+        operation = "Generazione sottotitoli..." if mode == "auto" else "Download sottotitoli..."
+        self._start_progress(operation)
+
         # Run processing in separate thread
         thread = threading.Thread(target=self._process_video, daemon=True)
         thread.start()
@@ -854,8 +988,8 @@ class SubtitleGeneratorGUI:
             messagebox.showerror("Errore", str(e))
             
         finally:
-            # Re-enable buttons
-            self.progress_bar.stop()
+            # Re-enable buttons and reset progress
+            self._reset_progress()
             self.start_btn.config(state='normal')
             self.cancel_btn.config(state='disabled')
             self.is_processing = False
