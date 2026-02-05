@@ -48,3 +48,4 @@ cache/
 config_local.py
 *_api_key.txt
 user_preferences.json
+user_preferences.json
