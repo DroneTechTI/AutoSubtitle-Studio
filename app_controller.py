@@ -7,11 +7,17 @@ import threading
 import config
 from utils.audio_extractor import AudioExtractor
 from utils.subtitle_formatter import SubtitleFormatter
-from utils.video_validator import VideoValidator, VideoValidationError
+from utils.video_validator import VideoValidator
 from utils.memory_manager import MemoryManager
 from utils.checkpoint_manager import CheckpointManager
 from utils.notification_manager import NotificationManager
 from utils.multilang_generator import MultiLanguageGenerator
+from utils.exceptions import (
+    VideoValidationError,
+    InsufficientMemoryError,
+    AudioExtractionError,
+    TranscriptionError
+)
 from engines.whisper_engine import WhisperEngine
 from services.opensubtitles_service import OpenSubtitlesService
 
@@ -171,7 +177,7 @@ class AppController:
                 log("")
                 log(suggestion_msg)
                 
-                raise MemoryError(
+                raise InsufficientMemoryError(
                     f"Memoria insufficiente per il modello '{model_name}'. "
                     f"Richiesti ~{required_mb} MB, disponibili {available_mb:.0f} MB. "
                     f"Prova con il modello '{suggested_model}' o chiudi altre applicazioni."

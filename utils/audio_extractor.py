@@ -5,6 +5,7 @@ import os
 import logging
 from pathlib import Path
 import ffmpeg
+from .exceptions import AudioExtractionError
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,12 @@ class AudioExtractor:
         except ffmpeg.Error as e:
             error_msg = e.stderr.decode() if e.stderr else str(e)
             logger.error(f"FFmpeg error: {error_msg}")
-            raise Exception(f"Errore nell'estrazione dell'audio: {error_msg}")
+            raise AudioExtractionError(f"Errore nell'estrazione dell'audio: {error_msg}") from e
+        except AudioExtractionError:
+            raise
         except Exception as e:
             logger.error(f"Error extracting audio: {str(e)}")
-            raise
+            raise AudioExtractionError(f"Errore imprevisto durante l'estrazione audio: {str(e)}") from e
     
     def cleanup_temp_audio(self, audio_path):
         """Remove temporary audio file"""
