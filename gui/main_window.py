@@ -68,7 +68,10 @@ class SubtitleGeneratorGUI:
             self.subtitle_format.trace_add('write', lambda *args: self.preferences.set('format', self.subtitle_format.get()))
         
         self._setup_ui()
-        
+
+        # Setup keyboard shortcuts
+        self._setup_keyboard_shortcuts()
+
         # Save window geometry on close
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
     
@@ -80,20 +83,20 @@ class SubtitleGeneratorGUI:
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Apri Video", command=self._browse_video)
-        file_menu.add_command(label="File Recenti", command=self._show_recent_files)
+        file_menu.add_command(label="Apri Video", command=self._browse_video, accelerator="Ctrl+O")
+        file_menu.add_command(label="File Recenti", command=self._show_recent_files, accelerator="Ctrl+R")
         file_menu.add_separator()
-        file_menu.add_command(label="Apri Cartella Output", command=self._open_output_folder)
+        file_menu.add_command(label="Apri Cartella Output", command=self._open_output_folder, accelerator="Ctrl+Shift+O")
         file_menu.add_separator()
-        file_menu.add_command(label="Esci", command=self._on_closing)
+        file_menu.add_command(label="Esci", command=self._on_closing, accelerator="Ctrl+Q")
         
         # Tools menu
         tools_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Strumenti", menu=tools_menu)
-        tools_menu.add_command(label="🌍 Multi-Lingua", command=self._open_multilang_window)
+        tools_menu.add_command(label="🌍 Multi-Lingua", command=self._open_multilang_window, accelerator="Ctrl+M")
         tools_menu.add_separator()
-        tools_menu.add_command(label="Batch Processing", command=self._open_batch_processor)
-        tools_menu.add_command(label="Integra Video", command=self._open_video_tools)
+        tools_menu.add_command(label="Batch Processing", command=self._open_batch_processor, accelerator="Ctrl+B")
+        tools_menu.add_command(label="Integra Video", command=self._open_video_tools, accelerator="Ctrl+V")
         tools_menu.add_command(label="Pulisci Sottotitoli", command=self._clean_subtitles)
         tools_menu.add_command(label="Statistiche Sottotitoli", command=self._show_subtitle_stats)
         tools_menu.add_separator()
@@ -145,7 +148,42 @@ class SubtitleGeneratorGUI:
         help_menu.add_command(label="Shortcuts Tastiera", command=self._show_shortcuts)
         help_menu.add_separator()
         help_menu.add_command(label="Info", command=self._show_about)
-        
+
+    def _setup_keyboard_shortcuts(self):
+        """Setup keyboard shortcuts for common actions"""
+        try:
+            # File operations
+            self.root.bind('<Control-o>', lambda e: self._browse_video())
+            self.root.bind('<Control-O>', lambda e: self._browse_video())
+            self.root.bind('<Control-r>', lambda e: self._show_recent_files())
+            self.root.bind('<Control-R>', lambda e: self._show_recent_files())
+            self.root.bind('<Control-Shift-O>', lambda e: self._open_output_folder())
+            self.root.bind('<Control-Shift-o>', lambda e: self._open_output_folder())
+            self.root.bind('<Control-q>', lambda e: self._on_closing())
+            self.root.bind('<Control-Q>', lambda e: self._on_closing())
+
+            # Generation/Preview
+            self.root.bind('<Control-g>', lambda e: self._start_processing() if self.start_btn['state'] != 'disabled' else None)
+            self.root.bind('<Control-G>', lambda e: self._start_processing() if self.start_btn['state'] != 'disabled' else None)
+            self.root.bind('<Control-p>', lambda e: self._open_preview() if self.preview_btn['state'] != 'disabled' else None)
+            self.root.bind('<Control-P>', lambda e: self._open_preview() if self.preview_btn['state'] != 'disabled' else None)
+
+            # Tools
+            self.root.bind('<Control-b>', lambda e: self._open_batch_processor())
+            self.root.bind('<Control-B>', lambda e: self._open_batch_processor())
+            self.root.bind('<Control-m>', lambda e: self._open_multilang_window())
+            self.root.bind('<Control-M>', lambda e: self._open_multilang_window())
+            self.root.bind('<Control-v>', lambda e: self._open_video_tools())
+            self.root.bind('<Control-V>', lambda e: self._open_video_tools())
+
+            # Help
+            self.root.bind('<F1>', lambda e: self._show_help())
+
+            logger.info("Keyboard shortcuts configured successfully")
+
+        except Exception as e:
+            logger.warning(f"Could not setup keyboard shortcuts: {str(e)}")
+
     def _setup_ui(self):
         """Setup the user interface"""
         # Main container
