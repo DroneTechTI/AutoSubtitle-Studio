@@ -232,15 +232,18 @@ class AppController:
             log("Pulizia file temporanei...")
             if audio_path:
                 self.audio_extractor.cleanup_temp_audio(audio_path)
-            
+
+            # Force garbage collection after processing to free memory
+            self.memory_manager.force_garbage_collection()
+
             log("=== COMPLETATO ===")
-            
+
             # Show desktop notification
             self.notification_manager.show_success(
                 f"Sottotitoli generati con successo!\n\nFile: {output_path.name}",
                 title="🎬 Sottotitoli Pronti"
             )
-            
+
             return output_path
             
         except OperationCancelledException:
@@ -260,7 +263,10 @@ class AppController:
                     self.audio_extractor.cleanup_temp_audio(audio_path)
                 except:
                     pass
-            
+
+            # Free memory after cancellation
+            self.memory_manager.force_garbage_collection()
+
             raise
             
         except Exception as e:
@@ -280,7 +286,10 @@ class AppController:
                     self.audio_extractor.cleanup_temp_audio(audio_path)
                 except:
                     pass
-            
+
+            # Free memory after error
+            self.memory_manager.force_garbage_collection()
+
             raise
     
     def search_subtitles(self, video_path, language="it"):

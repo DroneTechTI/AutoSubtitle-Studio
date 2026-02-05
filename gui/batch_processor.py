@@ -256,6 +256,11 @@ class BatchProcessorWindow:
         completed = 0
         cancelled = False
 
+        # Monitor memory before starting batch
+        mem_manager = self.controller.memory_manager
+        initial_mem = mem_manager.get_available_memory()
+        logger.info(f"Starting batch with {initial_mem:.0f} MB available memory")
+
         for idx, video_info in enumerate(self.video_list):
             # Thread-safe check if still processing
             with self.processing_lock:
@@ -296,6 +301,17 @@ class BatchProcessorWindow:
             except Exception as e:
                 logger.error(f"Error processing {video_path}: {str(e)}")
                 self._update_tree_item(idx, f'✗ Errore: {str(e)[:30]}', '-')
+
+            # Check memory after each video and warn if low
+            current_mem = mem_manager.get_available_memory()
+            if current_mem < 1000:  # Less than 1GB
+                logger.warning(f"Low memory warning: {current_mem:.0f} MB available")
+                self._update_status(f"⚠️ Memoria bassa ({current_mem:.0f} MB) - continuo...", 'orange')
+
+                # Force garbage collection to free memory
+                mem_manager.force_garbage_collection()
+                current_mem = mem_manager.get_available_memory()
+                logger.info(f"After GC: {current_mem:.0f} MB available")
 
             # Update overall progress
             progress = ((idx + 1) / total) * 100
