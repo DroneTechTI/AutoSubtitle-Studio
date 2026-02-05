@@ -917,29 +917,152 @@ class SubtitleGeneratorGUI:
         ttk.Button(pref_window, text="💾 Salva", command=save_prefs).pack(pady=10)
     
     def _show_recent_files(self):
-        """Show recent files menu"""
+        """Show recent files menu with enhanced UI"""
         if not self.preferences:
+            messagebox.showinfo("Info", "Nessuna preferenza disponibile")
             return
-        
+
+        recent_videos = self.preferences.get_last_videos()
+
         recent_window = tk.Toplevel(self.root)
-        recent_window.title("File Recenti")
-        recent_window.geometry("500x400")
-        
-        ttk.Label(recent_window, text="📁 File Recenti", font=('Arial', 12, 'bold')).pack(pady=10)
-        
-        listbox = tk.Listbox(recent_window, height=15)
-        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        for video in self.preferences.get_last_videos():
-            listbox.insert(tk.END, video)
-        
-        def load_selected():
-            selection = listbox.curselection()
-            if selection:
-                self.video_path.set(listbox.get(selection[0]))
+        recent_window.title("📁 Video Recenti")
+        recent_window.geometry("700x450")
+        recent_window.transient(self.root)
+
+        # Header
+        header_frame = ttk.Frame(recent_window, padding="10")
+        header_frame.pack(fill=tk.X)
+
+        ttk.Label(
+            header_frame,
+            text="📁 Video Elaborati Recentemente",
+            font=('Arial', 13, 'bold')
+        ).pack(side=tk.LEFT)
+
+        ttk.Label(
+            header_frame,
+            text=f"({len(recent_videos)} video)",
+            font=('Arial', 9),
+            foreground='gray'
+        ).pack(side=tk.LEFT, padx=10)
+
+        # Info label
+        info_frame = ttk.Frame(recent_window, padding="5")
+        info_frame.pack(fill=tk.X)
+
+        ttk.Label(
+            info_frame,
+            text="💡 Doppio click per caricare rapidamente | Click destro per opzioni",
+            font=('Arial', 8, 'italic'),
+            foreground='blue'
+        ).pack()
+
+        # Treeview with columns
+        list_frame = ttk.Frame(recent_window, padding="10")
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        columns = ('filename', 'path')
+        tree = ttk.Treeview(list_frame, columns=columns, show='tree headings', height=12)
+
+        tree.heading('#0', text='#', anchor=tk.W)
+        tree.heading('filename', text='Nome File', anchor=tk.W)
+        tree.heading('path', text='Percorso', anchor=tk.W)
+
+        tree.column('#0', width=40, stretch=False)
+        tree.column('filename', width=250, stretch=True)
+        tree.column('path', width=350, stretch=True)
+
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Populate tree
+        if recent_videos:
+            for idx, video_path in enumerate(recent_videos, 1):
+                path_obj = Path(video_path)
+                filename = path_obj.name if path_obj.exists() else f"{path_obj.name} (❌ Non trovato)"
+                tree.insert('', 'end', text=f"{idx}", values=(filename, str(video_path)))
+        else:
+            # Empty state
+            tree.insert('', 'end', text="", values=("Nessun video recente", "Elabora un video per vederlo qui"))
+
+        # Load selected function
+        def load_selected(event=None):
+            selection = tree.selection()
+            if selection and recent_videos:
+                item = selection[0]
+                values = tree.item(item, 'values')
+                video_path = values[1]
+
+                # Check if file exists
+                if Path(video_path).exists():
+                    self.video_path.set(video_path)
+                    recent_window.destroy()
+                    logger.info(f"Loaded recent video: {video_path}")
+                else:
+                    messagebox.showerror(
+                        "File Non Trovato",
+                        f"Il video non esiste più:\n{video_path}\n\nRimuovilo dalla lista?"
+                    )
+
+        # Remove selected function
+        def remove_selected():
+            selection = tree.selection()
+            if selection and recent_videos:
+                item = selection[0]
+                values = tree.item(item, 'values')
+                video_path = values[1]
+
+                if messagebox.askyesno("Conferma", f"Rimuovere dalla lista?\n\n{Path(video_path).name}"):
+                    recent_videos.remove(video_path)
+                    self.preferences.set('last_videos', recent_videos)
+                    tree.delete(item)
+                    logger.info(f"Removed from recent: {video_path}")
+
+        # Clear all function
+        def clear_all():
+            if messagebox.askyesno("Conferma", "Vuoi cancellare tutta la cronologia video?"):
+                self.preferences.set('last_videos', [])
                 recent_window.destroy()
-        
-        ttk.Button(recent_window, text="Carica", command=load_selected).pack(pady=10)
+                logger.info("Recent videos cleared")
+
+        # Bind double-click
+        tree.bind('<Double-Button-1>', load_selected)
+
+        # Buttons frame
+        buttons_frame = ttk.Frame(recent_window, padding="10")
+        buttons_frame.pack(fill=tk.X)
+
+        ttk.Button(
+            buttons_frame,
+            text="✓ Carica Selezionato",
+            command=load_selected,
+            width=20
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            buttons_frame,
+            text="🗑 Rimuovi",
+            command=remove_selected,
+            width=15
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            buttons_frame,
+            text="🧹 Cancella Tutto",
+            command=clear_all,
+            width=15
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            buttons_frame,
+            text="✖ Chiudi",
+            command=recent_window.destroy,
+            width=12
+        ).pack(side=tk.RIGHT, padx=5)
     
     def _clean_subtitles(self):
         """Clean subtitle file from ads and formatting"""
