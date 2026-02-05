@@ -15,7 +15,7 @@ class OpenSubtitlesSelectorWindow:
     def __init__(self, parent, search_results, controller):
         """
         Initialize selector window
-        
+
         Args:
             parent: Parent window
             search_results: List of search results from OpenSubtitles
@@ -26,6 +26,7 @@ class OpenSubtitlesSelectorWindow:
         self.controller = controller
         self.selected_result = None
         self.window = None
+        self.results_map = {}  # Map tree item ID to result dict
         
     def show(self):
         """Show the selector window and return selected result"""
@@ -176,7 +177,7 @@ class OpenSubtitlesSelectorWindow:
         """Populate tree with search results"""
         for idx, result in enumerate(self.search_results, 1):
             attributes = result.get('attributes', {})
-            
+
             language = attributes.get('language', 'unknown')
             file_name = attributes.get('files', [{}])[0].get('file_name', 'Unknown')
             release = attributes.get('release', '-')
@@ -184,14 +185,15 @@ class OpenSubtitlesSelectorWindow:
             rating = attributes.get('ratings', 0)
             uploader = attributes.get('uploader', {}).get('name', 'Unknown')
             hearing_impaired = '✓' if attributes.get('hearing_impaired', False) else '✗'
-            
+
             # Format rating
             if rating > 0:
                 rating_str = f"⭐ {rating:.1f}"
             else:
                 rating_str = "-"
-            
-            self.tree.insert(
+
+            # Insert into tree with index as tag
+            item_id = self.tree.insert(
                 '',
                 'end',
                 text=f"{idx}",
@@ -204,23 +206,23 @@ class OpenSubtitlesSelectorWindow:
                     uploader,
                     hearing_impaired
                 ),
-                tags=(idx,)
+                tags=(str(idx),)  # Use string index as tag
             )
-            
-            # Store result reference
-            self.tree.item(self.tree.get_children()[-1], tags=(idx, result))
+
+            # Store result in map (tkinter tags can't store complex objects)
+            self.results_map[item_id] = result
     
     def _on_tree_select(self, event):
         """Handle tree selection change"""
         selection = self.tree.selection()
         if not selection:
             return
-        
-        item = selection[0]
-        tags = self.tree.item(item, 'tags')
-        
-        if len(tags) >= 2:
-            result = tags[1]
+
+        item_id = selection[0]
+
+        # Get result from map using item ID
+        if item_id in self.results_map:
+            result = self.results_map[item_id]
             self._show_details(result)
     
     def _show_details(self, result):
@@ -292,12 +294,12 @@ class OpenSubtitlesSelectorWindow:
         if not selection:
             messagebox.showwarning("Attenzione", "Seleziona un sottotitolo dalla lista!")
             return
-        
-        item = selection[0]
-        tags = self.tree.item(item, 'tags')
-        
-        if len(tags) >= 2:
-            self.selected_result = tags[1]
+
+        item_id = selection[0]
+
+        # Get result from map
+        if item_id in self.results_map:
+            self.selected_result = self.results_map[item_id]
             self.window.destroy()
         else:
             messagebox.showerror("Errore", "Impossibile recuperare il risultato selezionato")
