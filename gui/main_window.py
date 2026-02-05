@@ -214,15 +214,32 @@ class SubtitleGeneratorGUI:
         )
         title_label.grid(row=0, column=0, columnspan=3, pady=10)
         
-        # Video file selection
-        ttk.Label(main_frame, text="File Video:", font=('Arial', 10)).grid(
-            row=1, column=0, sticky=tk.W, pady=5
-        )
-        
+        # Video file selection with enhanced UX
+        video_label = ttk.Label(main_frame, text="File Video:", font=('Arial', 10))
+        video_label.grid(row=1, column=0, sticky=tk.W, pady=5)
+
+        # Make label clickable to browse
+        video_label.bind('<Button-1>', lambda e: self._browse_video())
+        video_label.bind('<Enter>', lambda e: video_label.config(cursor='hand2', foreground='blue'))
+        video_label.bind('<Leave>', lambda e: video_label.config(cursor='', foreground='black'))
+
+        # Entry with paste support
         video_entry = ttk.Entry(main_frame, textvariable=self.video_path, width=50)
         video_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
-        
-        browse_btn = ttk.Button(main_frame, text="Sfoglia...", command=self._browse_video)
+
+        # Enable paste from clipboard
+        video_entry.bind('<Control-v>', self._paste_video_path)
+        video_entry.bind('<Control-V>', self._paste_video_path)
+
+        # Drop zone hint
+        create_tooltip(
+            video_entry,
+            "📋 Copia e incolla il percorso del video (Ctrl+V)\n"
+            "📁 Oppure clicca 'Sfoglia' per selezionare\n"
+            "🖱️ Doppio click sulla label per aprire selezione rapida"
+        )
+
+        browse_btn = ttk.Button(main_frame, text="📂 Sfoglia...", command=self._browse_video)
         browse_btn.grid(row=1, column=2, padx=5, pady=5)
         
         # Drag and drop info
@@ -618,13 +635,46 @@ class SubtitleGeneratorGUI:
         except Exception as e:
             logger.debug(f"Error incrementing stats: {str(e)}")
 
+    def _paste_video_path(self, event=None):
+        """Paste video path from clipboard"""
+        try:
+            # Get clipboard content
+            clipboard_content = self.root.clipboard_get()
+
+            # Clean up path (remove quotes if any)
+            clipboard_content = clipboard_content.strip().strip('"').strip("'")
+
+            # Validate it's a video file
+            from pathlib import Path
+            path = Path(clipboard_content)
+
+            if path.exists() and path.suffix.lower() in self.controller.config.SUPPORTED_VIDEO_FORMATS:
+                self.video_path.set(str(path))
+                self._log(f"✓ Video incollato: {path.name}")
+                logger.info(f"Video pasted from clipboard: {path}")
+            else:
+                # Try to set anyway, let user decide
+                self.video_path.set(clipboard_content)
+                if not path.exists():
+                    messagebox.showwarning(
+                        "Attenzione",
+                        "Il file incollato non esiste o non è un formato video supportato.\n\n"
+                        f"Percorso: {clipboard_content}\n\n"
+                        "Verifica il percorso e riprova."
+                    )
+
+        except tk.TclError:
+            messagebox.showinfo("Info", "Clipboard vuota o contenuto non valido")
+        except Exception as e:
+            logger.error(f"Error pasting video path: {str(e)}")
+
     def _browse_video(self):
         """Open file dialog to select video"""
         filetypes = [
             ('Video Files', ' '.join(f'*{ext}' for ext in self.controller.config.SUPPORTED_VIDEO_FORMATS)),
             ('All Files', '*.*')
         ]
-        
+
         filename = filedialog.askopenfilename(
             title="Seleziona un file video",
             filetypes=filetypes
