@@ -60,6 +60,17 @@ class SubtitleGeneratorGUI:
         self.whisper_model = tk.StringVar(value=default_model)
         self.is_processing = False
         self.last_subtitle_path = None
+
+        # Session statistics
+        self.session_stats = {
+            'videos_processed': 0,
+            'subtitles_generated': 0,
+            'subtitles_downloaded': 0,
+            'total_time_saved': 0,  # minutes
+            'start_time': None
+        }
+        import time
+        self.session_stats['start_time'] = time.time()
         
         # Trace variables to auto-save preferences
         if self.preferences:
@@ -443,6 +454,9 @@ class SubtitleGeneratorGUI:
         # Add helpful tooltips for better UX
         self._add_tooltips()
 
+        # Session statistics status bar
+        self._create_status_bar(main_frame)
+
         # Configure row weights for resizing
         main_frame.rowconfigure(9, weight=1)
 
@@ -486,6 +500,123 @@ class SubtitleGeneratorGUI:
 
         except Exception as e:
             logger.warning(f"Could not add tooltips: {str(e)}")
+
+    def _create_status_bar(self, parent):
+        """Create session statistics status bar at bottom"""
+        try:
+            # Separator
+            ttk.Separator(parent, orient='horizontal').grid(
+                row=12, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 5)
+            )
+
+            # Status bar frame
+            status_frame = ttk.Frame(parent, relief=tk.SUNKEN)
+            status_frame.grid(row=13, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=0)
+
+            # Session statistics labels
+            self.stat_videos_label = ttk.Label(
+                status_frame,
+                text="📊 Video: 0",
+                font=('Arial', 8),
+                foreground='#2563eb'
+            )
+            self.stat_videos_label.pack(side=tk.LEFT, padx=10, pady=3)
+
+            self.stat_subtitles_label = ttk.Label(
+                status_frame,
+                text="📝 Sottotitoli: 0",
+                font=('Arial', 8),
+                foreground='#16a34a'
+            )
+            self.stat_subtitles_label.pack(side=tk.LEFT, padx=10)
+
+            self.stat_time_label = ttk.Label(
+                status_frame,
+                text="⏱ Tempo risparmiato: 0 min",
+                font=('Arial', 8),
+                foreground='#ea580c'
+            )
+            self.stat_time_label.pack(side=tk.LEFT, padx=10)
+
+            self.stat_memory_label = ttk.Label(
+                status_frame,
+                text="💾 RAM: 0 MB",
+                font=('Arial', 8),
+                foreground='#7c3aed'
+            )
+            self.stat_memory_label.pack(side=tk.LEFT, padx=10)
+
+            # Session duration
+            self.stat_session_label = ttk.Label(
+                status_frame,
+                text="🕐 Sessione: 0m",
+                font=('Arial', 8),
+                foreground='#64748b'
+            )
+            self.stat_session_label.pack(side=tk.RIGHT, padx=10)
+
+            # Update stats periodically
+            self._update_stats_display()
+
+            logger.info("Status bar created successfully")
+
+        except Exception as e:
+            logger.warning(f"Could not create status bar: {str(e)}")
+
+    def _update_stats_display(self):
+        """Update statistics display in status bar"""
+        try:
+            # Update counts
+            videos = self.session_stats['videos_processed']
+            subs_gen = self.session_stats['subtitles_generated']
+            subs_down = self.session_stats['subtitles_downloaded']
+            total_subs = subs_gen + subs_down
+
+            self.stat_videos_label.config(text=f"📊 Video: {videos}")
+            self.stat_subtitles_label.config(
+                text=f"📝 Sottotitoli: {total_subs} ({subs_gen}🤖 + {subs_down}🌐)"
+            )
+
+            # Time saved estimate (15 min per subtitle generated manually)
+            time_saved = self.session_stats['total_time_saved']
+            self.stat_time_label.config(text=f"⏱ Tempo risparmiato: ~{time_saved} min")
+
+            # Memory usage
+            try:
+                mem_info = self.controller.memory_manager.get_memory_info_dict()
+                used_mb = mem_info.get('used_mb', 0)
+                self.stat_memory_label.config(text=f"💾 RAM: {used_mb:.0f} MB")
+            except:
+                pass
+
+            # Session duration
+            import time
+            session_duration = int((time.time() - self.session_stats['start_time']) / 60)
+            self.stat_session_label.config(text=f"🕐 Sessione: {session_duration}m")
+
+            # Schedule next update (every 10 seconds)
+            self.root.after(10000, self._update_stats_display)
+
+        except Exception as e:
+            logger.debug(f"Error updating stats display: {str(e)}")
+
+    def _increment_session_stats(self, stat_type, time_saved=0):
+        """Increment session statistics"""
+        try:
+            if stat_type == 'video':
+                self.session_stats['videos_processed'] += 1
+            elif stat_type == 'subtitle_generated':
+                self.session_stats['subtitles_generated'] += 1
+                self.session_stats['total_time_saved'] += time_saved
+            elif stat_type == 'subtitle_downloaded':
+                self.session_stats['subtitles_downloaded'] += 1
+                self.session_stats['total_time_saved'] += 5  # Estimated 5 min saved
+
+            # Update display immediately
+            self._update_stats_display()
+
+        except Exception as e:
+            logger.debug(f"Error incrementing stats: {str(e)}")
 
     def _browse_video(self):
         """Open file dialog to select video"""
@@ -636,6 +767,15 @@ class SubtitleGeneratorGUI:
                 # Update recent videos in preferences
                 if self.preferences:
                     self.preferences.update_last_videos(video_path)
+
+                # Update session statistics
+                self._increment_session_stats('video')
+                if mode == "auto":
+                    # Estimate time saved: ~15 min per subtitle generated manually
+                    self._increment_session_stats('subtitle_generated', time_saved=15)
+                else:
+                    # Download: ~5 min saved
+                    self._increment_session_stats('subtitle_downloaded')
 
                 messagebox.showinfo(
                     "Successo",
