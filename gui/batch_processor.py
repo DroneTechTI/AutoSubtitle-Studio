@@ -19,11 +19,13 @@ class BatchProcessorWindow:
         self.window = tk.Toplevel(parent)
         self.window.title("Elaborazione Batch - Più Video")
         self.window.geometry("800x600")
-        
+
         self.video_list = []
         self.processing = False
+        self.processing_lock = threading.Lock()  # Thread-safe flag protection
         self.current_index = 0
-        
+        self.current_cancellation_token = None  # Token for graceful cancellation
+
         self._setup_ui()
         
     def _setup_ui(self):
@@ -212,68 +214,110 @@ class BatchProcessorWindow:
         if not self.video_list:
             messagebox.showwarning("Attenzione", "Aggiungi almeno un video prima di iniziare!")
             return
-        
-        self.processing = True
+
+        # Thread-safe flag update
+        with self.processing_lock:
+            if self.processing:
+                logger.warning("Batch processing already running")
+                return
+            self.processing = True
+
+        # Create cancellation token for this batch
+        self.current_cancellation_token = self.controller.create_cancellation_token()
+
         self.current_index = 0
         self.start_btn.config(state='disabled')
         self.stop_btn.config(state='normal')
-        
+
         thread = threading.Thread(target=self._process_batch, daemon=True)
         thread.start()
         
     def _stop_batch(self):
         """Stop batch processing"""
         if messagebox.askyesno("Conferma", "Vuoi interrompere l'elaborazione batch?"):
-            self.processing = False
-            self._update_status("Elaborazione interrotta", 'orange')
+            # Request cancellation via token for graceful stop
+            if self.current_cancellation_token:
+                self.current_cancellation_token.cancel()
+                logger.info("Batch cancellation requested via token")
+
+            # Thread-safe flag update
+            with self.processing_lock:
+                self.processing = False
+
+            self._update_status("Interruzione richiesta...", 'orange')
             self.start_btn.config(state='normal')
             self.stop_btn.config(state='disabled')
             
     def _process_batch(self):
         """Process all videos in batch"""
+        from app_controller import OperationCancelledException
+
         total = len(self.video_list)
-        
+        completed = 0
+        cancelled = False
+
         for idx, video_info in enumerate(self.video_list):
-            if not self.processing:
-                break
-                
+            # Thread-safe check if still processing
+            with self.processing_lock:
+                if not self.processing:
+                    cancelled = True
+                    break
+
             self.current_index = idx
             video_path = video_info['path']
-            
+
             try:
                 # Update status
                 self._update_tree_item(idx, '⏳ Elaborazione...', '0%')
                 self._update_status(f"Elaborazione {idx + 1}/{total}: {Path(video_path).name}", 'blue')
-                
-                # Process video
+
+                # Process video with cancellation token
                 result = self.controller.generate_subtitles(
                     video_path=video_path,
                     language=self.language_var.get(),
                     output_format=self.format_var.get(),
                     model_name=self.model_var.get(),
-                    progress_callback=lambda msg: self._log_progress(idx, msg)
+                    progress_callback=lambda msg: self._log_progress(idx, msg),
+                    cancellation_token=self.current_cancellation_token
                 )
-                
+
                 if result:
                     self._update_tree_item(idx, '✓ Completato', '100%')
+                    completed += 1
                 else:
                     self._update_tree_item(idx, '✗ Fallito', '-')
-                    
+
+            except OperationCancelledException:
+                logger.info(f"Video {idx + 1} cancelled by user")
+                self._update_tree_item(idx, '⚠️ Annullato', '-')
+                cancelled = True
+                break
+
             except Exception as e:
                 logger.error(f"Error processing {video_path}: {str(e)}")
                 self._update_tree_item(idx, f'✗ Errore: {str(e)[:30]}', '-')
-            
+
             # Update overall progress
             progress = ((idx + 1) / total) * 100
             self.overall_progress['value'] = progress
-            
-        if self.processing:
-            self._update_status("✓ Elaborazione batch completata!", 'green')
-            messagebox.showinfo("Completato", f"Elaborati {total} video con successo!")
-        
-        self.processing = False
+
+        # Final status update
+        with self.processing_lock:
+            self.processing = False
+
+        if cancelled:
+            self._update_status(f"⚠️ Elaborazione interrotta ({completed}/{total} completati)", 'orange')
+        else:
+            self._update_status(f"✓ Elaborazione completata! ({completed}/{total} successi)", 'green')
+            if completed == total:
+                messagebox.showinfo("Completato", f"Elaborati tutti i {total} video con successo!")
+            else:
+                messagebox.showwarning("Completato con errori",
+                                     f"Elaborati {completed}/{total} video.\nAlcuni video hanno generato errori.")
+
         self.start_btn.config(state='normal')
         self.stop_btn.config(state='disabled')
+        self.current_cancellation_token = None
         
     def _update_tree_item(self, idx, status, progress):
         """Update tree item status"""
