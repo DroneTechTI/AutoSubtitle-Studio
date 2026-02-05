@@ -16,6 +16,7 @@ try:
     from gui.log_viewer import LogViewerWindow
     from gui.multilang_window import MultiLanguageWindow
     from gui.opensubtitles_selector import OpenSubtitlesSelectorWindow
+    from gui.tooltip import create_tooltip
     from utils.preferences_manager import PreferencesManager
     from utils.i18n import get_i18n, t
     from services.translation_service import TranslationService
@@ -400,13 +401,54 @@ class SubtitleGeneratorGUI:
             command=self._show_preferences,
             width=15
         ).pack(side=tk.LEFT, padx=5)
-        
+
+        # Add helpful tooltips for better UX
+        self._add_tooltips()
+
         # Configure row weights for resizing
         main_frame.rowconfigure(9, weight=1)
-        
+
         # Initial mode setup
         self._on_mode_change()
-        
+
+    def _add_tooltips(self):
+        """Add helpful tooltips to widgets for better UX"""
+        try:
+            # Main action buttons
+            create_tooltip(
+                self.start_btn,
+                "Avvia la generazione o il download dei sottotitoli.\n"
+                "Assicurati di aver selezionato un video e configurato le opzioni."
+            )
+
+            create_tooltip(
+                self.cancel_btn,
+                "Annulla l'operazione in corso.\n"
+                "L'elaborazione si fermerà al termine del segmento corrente."
+            )
+
+            create_tooltip(
+                self.preview_btn,
+                "Visualizza i sottotitoli generati con timing preciso.\n"
+                "Puoi modificare i sottotitoli direttamente nell'anteprima."
+            )
+
+            # Model selection tooltip
+            create_tooltip(
+                self.model_combo,
+                "Scegli il modello Whisper:\n"
+                "• tiny: Veloce (1 GB RAM) - test rapidi\n"
+                "• base: Bilanciato (1.5 GB) - uso quotidiano ✓\n"
+                "• small: Qualità (2.5 GB) - buon compromesso\n"
+                "• medium: Alta qualità (5 GB) - lingue complesse\n"
+                "• large: Massima precisione (10 GB) - professionale"
+            )
+
+            logger.info("Tooltips added successfully")
+
+        except Exception as e:
+            logger.warning(f"Could not add tooltips: {str(e)}")
+
     def _browse_video(self):
         """Open file dialog to select video"""
         filetypes = [
