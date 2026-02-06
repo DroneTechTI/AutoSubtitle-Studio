@@ -22,7 +22,7 @@ class MemoryManager:
     }
     
     # Safety margin (in MB) to leave for system
-    SAFETY_MARGIN_MB = 2048  # 2GB safety margin
+    SAFETY_MARGIN_MB = 512  # 512MB safety margin (ragionevole per la maggior parte dei sistemi)
     
     def __init__(self):
         pass

@@ -94,4 +94,4 @@ DEFAULT_LANGUAGE = "it"
 # Application settings
 APP_NAME = "Subtitle Generator"
 APP_VERSION = "1.0.0"
-WINDOW_SIZE = "900x700"
+WINDOW_SIZE = "1100x900"

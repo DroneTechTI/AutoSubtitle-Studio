@@ -45,7 +45,13 @@ class SubtitleGeneratorGUI:
         except:
             self.preferences = None
             self.root.geometry(self.controller.config.WINDOW_SIZE)
-        
+
+        # Set minimum window size to ensure all controls are visible
+        self.root.minsize(1000, 850)
+
+        # Make window resizable
+        self.root.resizable(True, True)
+
         # Variables
         self.video_path = tk.StringVar()
         self.mode = tk.StringVar(value="auto")
@@ -163,10 +169,13 @@ class SubtitleGeneratorGUI:
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Aiuto", menu=help_menu)
-        help_menu.add_command(label="Guida Rapida", command=self._show_quick_guide)
-        help_menu.add_command(label="Shortcuts Tastiera", command=self._show_shortcuts)
+        help_menu.add_command(label="📖 Guida Completa (PDF)", command=self._open_full_guide)
+        help_menu.add_command(label="⚡ Guida Rapida", command=self._show_quick_guide, accelerator="F1")
+        help_menu.add_command(label="⌨️ Shortcuts Tastiera", command=self._show_shortcuts)
         help_menu.add_separator()
-        help_menu.add_command(label="Info", command=self._show_about)
+        help_menu.add_command(label="📂 Dove Vanno i File?", command=self._show_file_locations)
+        help_menu.add_separator()
+        help_menu.add_command(label="ℹ️ Info", command=self._show_about)
 
     def _setup_keyboard_shortcuts(self):
         """Setup keyboard shortcuts for common actions"""
@@ -213,14 +222,14 @@ class SubtitleGeneratorGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
-        
+
         # Title with better spacing
         title_label = ttk.Label(
             main_frame,
             text="🎬 AutoSubtitle Studio",
             font=('Arial', 18, 'bold')
         )
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 15))
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 5))
 
         # Subtitle
         subtitle_label = ttk.Label(
@@ -229,11 +238,106 @@ class SubtitleGeneratorGUI:
             font=('Arial', 9, 'italic'),
             foreground='#64748b'
         )
-        subtitle_label.grid(row=1, column=0, columnspan=3, pady=(0, 20))
+        subtitle_label.grid(row=1, column=0, columnspan=3, pady=(0, 10))
+
+        # === NUOVO: Pannello informativo cartelle ===
+        info_frame = ttk.LabelFrame(main_frame, text="📂 Percorsi Applicazione", padding="10")
+        info_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        info_frame.columnconfigure(1, weight=1)
+
+        # Output directory
+        ttk.Label(
+            info_frame,
+            text="📝 Sottotitoli:",
+            font=('Arial', 9, 'bold')
+        ).grid(row=0, column=0, sticky=tk.W, pady=3)
+
+        output_path_label = ttk.Label(
+            info_frame,
+            text=str(self.controller.config.OUTPUT_DIR),
+            font=('Arial', 8),
+            foreground='#2563eb',
+            cursor='hand2'
+        )
+        output_path_label.grid(row=0, column=1, sticky=tk.W, padx=(5, 0), pady=3)
+        output_path_label.bind('<Button-1>', lambda e: self._open_output_folder())
+        create_tooltip(output_path_label, "Click per aprire la cartella dei sottotitoli generati")
+
+        ttk.Button(
+            info_frame,
+            text="📂",
+            command=self._open_output_folder,
+            width=3
+        ).grid(row=0, column=2, padx=5)
+
+        # Models directory
+        ttk.Label(
+            info_frame,
+            text="🤖 Modelli AI:",
+            font=('Arial', 9, 'bold')
+        ).grid(row=1, column=0, sticky=tk.W, pady=3)
+
+        models_path_label = ttk.Label(
+            info_frame,
+            text=str(self.controller.config.MODELS_DIR),
+            font=('Arial', 8),
+            foreground='#16a34a',
+            cursor='hand2'
+        )
+        models_path_label.grid(row=1, column=1, sticky=tk.W, padx=(5, 0), pady=3)
+        models_path_label.bind('<Button-1>', lambda e: self._open_folder(self.controller.config.MODELS_DIR))
+        create_tooltip(models_path_label, "Click per aprire la cartella dei modelli Whisper")
+
+        ttk.Button(
+            info_frame,
+            text="📂",
+            command=lambda: self._open_folder(self.controller.config.MODELS_DIR),
+            width=3
+        ).grid(row=1, column=2, padx=5)
+
+        # Temp directory
+        ttk.Label(
+            info_frame,
+            text="🗂️ File Temp:",
+            font=('Arial', 9, 'bold')
+        ).grid(row=2, column=0, sticky=tk.W, pady=3)
+
+        temp_path_label = ttk.Label(
+            info_frame,
+            text=str(self.controller.config.TEMP_DIR),
+            font=('Arial', 8),
+            foreground='#ea580c',
+            cursor='hand2'
+        )
+        temp_path_label.grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=3)
+        temp_path_label.bind('<Button-1>', lambda e: self._open_folder(self.controller.config.TEMP_DIR))
+        create_tooltip(temp_path_label, "Click per aprire la cartella dei file temporanei")
+
+        ttk.Button(
+            info_frame,
+            text="🗑️",
+            command=self._clean_temp_folder,
+            width=3
+        ).grid(row=2, column=2, padx=5)
+        create_tooltip(info_frame.grid_slaves(row=2, column=2)[0], "Pulisci file temporanei")
+
+        # Info message
+        ttk.Label(
+            info_frame,
+            text="💡 I sottotitoli generati vengono salvati nella cartella 'output_subtitles' nella directory dell'applicazione",
+            font=('Arial', 8, 'italic'),
+            foreground='#7c3aed',
+            wraplength=650
+        ).grid(row=3, column=0, columnspan=3, pady=(10, 0))
+
+        # Separator
+        ttk.Separator(main_frame, orient='horizontal').grid(
+            row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=15
+        )
         
         # Video file selection with enhanced UX
-        video_label = ttk.Label(main_frame, text="File Video:", font=('Arial', 10))
-        video_label.grid(row=1, column=0, sticky=tk.W, pady=5)
+        video_label = ttk.Label(main_frame, text="File Video:", font=('Arial', 10, 'bold'))
+        video_label.grid(row=4, column=0, sticky=tk.W, pady=5)
 
         # Make label clickable to browse
         video_label.bind('<Button-1>', lambda e: self._browse_video())
@@ -242,7 +346,7 @@ class SubtitleGeneratorGUI:
 
         # Entry with paste support
         video_entry = ttk.Entry(main_frame, textvariable=self.video_path, width=50)
-        video_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
+        video_entry.grid(row=4, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
         # Enable paste from clipboard
         video_entry.bind('<Control-v>', self._paste_video_path)
@@ -257,54 +361,74 @@ class SubtitleGeneratorGUI:
         )
 
         browse_btn = ttk.Button(main_frame, text="📂 Sfoglia...", command=self._browse_video)
-        browse_btn.grid(row=1, column=2, padx=5, pady=5)
-        
+        browse_btn.grid(row=4, column=2, padx=5, pady=5)
+
         # Drag and drop info
         info_label = ttk.Label(
-            main_frame, 
-            text="💡 Oppure trascina il video qui sopra",
-            font=('Arial', 9, 'italic'),
-            foreground='gray'
+            main_frame,
+            text="💡 Incolla il percorso (Ctrl+V) o clicca su Sfoglia per selezionare il video",
+            font=('Arial', 8, 'italic'),
+            foreground='#64748b'
         )
-        info_label.grid(row=2, column=0, columnspan=3, pady=2)
-        
-        # Separator
-        ttk.Separator(main_frame, orient='horizontal').grid(
-            row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=15
-        )
-        
-        # Mode selection
-        ttk.Label(main_frame, text="Modalità:", font=('Arial', 10, 'bold')).grid(
-            row=4, column=0, sticky=tk.W, pady=5
-        )
-        
-        mode_frame = ttk.Frame(main_frame)
-        mode_frame.grid(row=5, column=0, columnspan=3, pady=5)
-        
-        ttk.Radiobutton(
-            mode_frame, 
-            text="🤖 Auto-Genera (Intelligenza Artificiale)", 
-            variable=self.mode, 
-            value="auto",
-            command=self._on_mode_change
-        ).pack(anchor=tk.W, padx=20)
-        
-        ttk.Radiobutton(
-            mode_frame, 
-            text="🌐 Scarica da OpenSubtitles", 
-            variable=self.mode, 
-            value="download",
-            command=self._on_mode_change
-        ).pack(anchor=tk.W, padx=20, pady=5)
+        info_label.grid(row=5, column=0, columnspan=3, pady=2)
         
         # Separator
         ttk.Separator(main_frame, orient='horizontal').grid(
             row=6, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=15
         )
+
+        # Mode selection
+        ttk.Label(main_frame, text="Modalità:", font=('Arial', 10, 'bold')).grid(
+            row=7, column=0, sticky=tk.W, pady=5
+        )
+
+        mode_frame = ttk.Frame(main_frame)
+        mode_frame.grid(row=8, column=0, columnspan=3, pady=5)
         
+        auto_radio = ttk.Radiobutton(
+            mode_frame,
+            text="🤖 Auto-Genera con AI (Whisper - Offline)",
+            variable=self.mode,
+            value="auto",
+            command=self._on_mode_change
+        )
+        auto_radio.pack(anchor=tk.W, padx=20)
+        create_tooltip(
+            auto_radio,
+            "Genera sottotitoli usando l'intelligenza artificiale Whisper di OpenAI.\n"
+            "• Funziona offline (nessuna connessione richiesta)\n"
+            "• Supporta 90+ lingue\n"
+            "• Qualità eccellente per audio chiaro\n"
+            "• Tempo: 5-15 minuti per video da 1 ora\n"
+            "• Richiede: 1.5-10 GB RAM (a seconda del modello)"
+        )
+
+        download_radio = ttk.Radiobutton(
+            mode_frame,
+            text="🌐 Scarica da OpenSubtitles (Online - Veloce)",
+            variable=self.mode,
+            value="download",
+            command=self._on_mode_change
+        )
+        download_radio.pack(anchor=tk.W, padx=20, pady=5)
+        create_tooltip(
+            download_radio,
+            "Scarica sottotitoli già esistenti dal database OpenSubtitles.\n"
+            "• Richiede connessione internet\n"
+            "• Richiede API key (configurare in config.py o .env)\n"
+            "• Istantaneo (pochi secondi)\n"
+            "• Qualità variabile (dipende dagli uploader)\n"
+            "• Migliaia di film e serie TV disponibili"
+        )
+        
+        # Separator
+        ttk.Separator(main_frame, orient='horizontal').grid(
+            row=9, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=15
+        )
+
         # Options frame
-        options_frame = ttk.LabelFrame(main_frame, text="Opzioni", padding="10")
-        options_frame.grid(row=7, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
+        options_frame = ttk.LabelFrame(main_frame, text="⚙️ Opzioni di Generazione", padding="10")
+        options_frame.grid(row=10, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
         options_frame.columnconfigure(1, weight=1)
         
         # Language selection
@@ -341,8 +465,8 @@ class SubtitleGeneratorGUI:
         format_combo.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
         
         # Whisper model (only for auto mode)
-        ttk.Label(options_frame, text="Qualità Modello:").grid(row=2, column=0, sticky=tk.W, pady=5)
-        
+        ttk.Label(options_frame, text="Modello AI:").grid(row=2, column=0, sticky=tk.W, pady=5)
+
         self.model_combo = ttk.Combobox(
             options_frame,
             textvariable=self.whisper_model,
@@ -351,18 +475,34 @@ class SubtitleGeneratorGUI:
             width=15
         )
         self.model_combo.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
-        
+
+        # Memory indicator
+        self.memory_indicator_label = ttk.Label(
+            options_frame,
+            text="",
+            font=('Arial', 8),
+            foreground='green'
+        )
+        self.memory_indicator_label.grid(row=2, column=2, sticky=tk.W, padx=5)
+
+        # Update memory indicator when model changes
+        self.model_combo.bind('<<ComboboxSelected>>', self._update_memory_indicator)
+
+        # Model info row
         model_info = ttk.Label(
             options_frame,
-            text="(tiny=veloce, large=migliore qualità)",
-            foreground='gray',
-            font=('Arial', 8)
+            text="💡 tiny=veloce, base=bilanciato, small=qualità, medium/large=massima precisione",
+            foreground='#64748b',
+            font=('Arial', 8, 'italic')
         )
-        model_info.grid(row=2, column=2, sticky=tk.W, padx=5)
+        model_info.grid(row=3, column=0, columnspan=3, sticky=tk.W, pady=(5, 0))
+
+        # Initial memory check
+        self._update_memory_indicator()
         
         # Progress frame with enhanced visual feedback
-        progress_frame = ttk.LabelFrame(main_frame, text="Progresso", padding="10")
-        progress_frame.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
+        progress_frame = ttk.LabelFrame(main_frame, text="📊 Progresso Elaborazione", padding="10")
+        progress_frame.grid(row=11, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
         progress_frame.columnconfigure(0, weight=1)
 
         # Progress bar with determinate mode for percentage display
@@ -400,8 +540,8 @@ class SubtitleGeneratorGUI:
         self.eta_label.grid(row=2, column=0, pady=(0, 5))
         
         # Log output
-        log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
-        log_frame.grid(row=9, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
+        log_frame = ttk.LabelFrame(main_frame, text="📋 Log Attività", padding="5")
+        log_frame.grid(row=12, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         
@@ -416,24 +556,39 @@ class SubtitleGeneratorGUI:
         
         # Buttons frame
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=10, column=0, columnspan=3, pady=10)
+        buttons_frame.grid(row=13, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
         
         self.start_btn = ttk.Button(
             buttons_frame,
-            text="▶ Avvia",
+            text="▶ AVVIA GENERAZIONE",
             command=self._start_processing,
-            width=15
+            width=20
         )
         self.start_btn.pack(side=tk.LEFT, padx=5)
-        
+        create_tooltip(
+            self.start_btn,
+            "Avvia la generazione o il download dei sottotitoli.\n"
+            "Assicurati di aver:\n"
+            "• Selezionato un video\n"
+            "• Scelto la modalità (Auto o Download)\n"
+            "• Configurato lingua e formato\n"
+            "• Verificato la memoria disponibile (se Auto)"
+        )
+
         self.cancel_btn = ttk.Button(
             buttons_frame,
-            text="⏹ Annulla",
+            text="⏹ ANNULLA",
             command=self._cancel_processing,
             state='disabled',
             width=15
         )
         self.cancel_btn.pack(side=tk.LEFT, padx=5)
+        create_tooltip(
+            self.cancel_btn,
+            "Annulla l'operazione in corso.\n"
+            "L'elaborazione si fermerà in modo sicuro\n"
+            "al termine del segmento corrente."
+        )
         
         # New buttons
         ttk.Button(
@@ -475,7 +630,7 @@ class SubtitleGeneratorGUI:
         
         # Second row of buttons
         buttons_frame2 = ttk.Frame(main_frame)
-        buttons_frame2.grid(row=11, column=0, columnspan=3, pady=5)
+        buttons_frame2.grid(row=14, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
         
         ttk.Button(
             buttons_frame2,
@@ -512,7 +667,7 @@ class SubtitleGeneratorGUI:
         self._create_status_bar(main_frame)
 
         # Configure row weights for resizing
-        main_frame.rowconfigure(9, weight=1)
+        main_frame.rowconfigure(12, weight=1)
 
         # Initial mode setup
         self._on_mode_change()
@@ -520,37 +675,43 @@ class SubtitleGeneratorGUI:
     def _add_tooltips(self):
         """Add helpful tooltips to widgets for better UX"""
         try:
-            # Main action buttons
-            create_tooltip(
-                self.start_btn,
-                "Avvia la generazione o il download dei sottotitoli.\n"
-                "Assicurati di aver selezionato un video e configurato le opzioni."
-            )
-
-            create_tooltip(
-                self.cancel_btn,
-                "Annulla l'operazione in corso.\n"
-                "L'elaborazione si fermerà al termine del segmento corrente."
-            )
-
+            # Preview button tooltip
             create_tooltip(
                 self.preview_btn,
-                "Visualizza i sottotitoli generati con timing preciso.\n"
-                "Puoi modificare i sottotitoli direttamente nell'anteprima."
+                "👁️ Visualizza i sottotitoli generati\n\n"
+                "Funzionalità:\n"
+                "• Anteprima con timing preciso\n"
+                "• Modifica diretta dei sottotitoli\n"
+                "• Salvataggio immediato\n"
+                "• Sincronizzazione visiva"
             )
 
-            # Model selection tooltip
+            # Model selection tooltip (enhanced)
             create_tooltip(
                 self.model_combo,
-                "Scegli il modello Whisper:\n"
-                "• tiny: Veloce (1 GB RAM) - test rapidi\n"
-                "• base: Bilanciato (1.5 GB) - uso quotidiano ✓\n"
-                "• small: Qualità (2.5 GB) - buon compromesso\n"
-                "• medium: Alta qualità (5 GB) - lingue complesse\n"
-                "• large: Massima precisione (10 GB) - professionale"
+                "🤖 Scegli il modello Whisper AI:\n\n"
+                "• tiny: Ultra veloce (1 GB RAM)\n"
+                "  → Perfetto per test rapidi\n\n"
+                "• base: Bilanciato (1.5 GB RAM) ✓ CONSIGLIATO\n"
+                "  → Ottimo per uso quotidiano\n\n"
+                "• small: Alta qualità (2.5 GB RAM)\n"
+                "  → Buon compromesso qualità/velocità\n\n"
+                "• medium: Qualità professionale (5 GB RAM)\n"
+                "  → Per lingue complesse o audio difficile\n\n"
+                "• large: Massima precisione (10 GB RAM)\n"
+                "  → Qualità assoluta per progetti professionali"
             )
 
-            logger.info("Tooltips added successfully")
+            # Language combo tooltip
+            create_tooltip(
+                self.language_name_label.master.winfo_children()[1],  # language combo
+                "🌍 Seleziona la lingua del video\n\n"
+                "Il modello AI rileva automaticamente la lingua,\n"
+                "ma specificarla migliora la precisione.\n\n"
+                "Supportate 90+ lingue!"
+            )
+
+            logger.info("Enhanced tooltips added successfully")
 
         except Exception as e:
             logger.warning(f"Could not add tooltips: {str(e)}")
@@ -560,12 +721,12 @@ class SubtitleGeneratorGUI:
         try:
             # Separator
             ttk.Separator(parent, orient='horizontal').grid(
-                row=12, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 5)
+                row=15, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 5)
             )
 
             # Status bar frame
             status_frame = ttk.Frame(parent, relief=tk.SUNKEN)
-            status_frame.grid(row=13, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=0)
+            status_frame.grid(row=16, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=0)
 
             # Session statistics labels
             self.stat_videos_label = ttk.Label(
@@ -575,6 +736,12 @@ class SubtitleGeneratorGUI:
                 foreground='#2563eb'
             )
             self.stat_videos_label.pack(side=tk.LEFT, padx=10, pady=3)
+            create_tooltip(
+                self.stat_videos_label,
+                "📊 Video elaborati in questa sessione\n\n"
+                "Conta il numero di video per cui hai\n"
+                "generato o scaricato sottotitoli."
+            )
 
             self.stat_subtitles_label = ttk.Label(
                 status_frame,
@@ -583,6 +750,12 @@ class SubtitleGeneratorGUI:
                 foreground='#16a34a'
             )
             self.stat_subtitles_label.pack(side=tk.LEFT, padx=10)
+            create_tooltip(
+                self.stat_subtitles_label,
+                "📝 Sottotitoli creati in questa sessione\n\n"
+                "🤖 = Generati con AI\n"
+                "🌐 = Scaricati da OpenSubtitles"
+            )
 
             self.stat_time_label = ttk.Label(
                 status_frame,
@@ -591,6 +764,15 @@ class SubtitleGeneratorGUI:
                 foreground='#ea580c'
             )
             self.stat_time_label.pack(side=tk.LEFT, padx=10)
+            create_tooltip(
+                self.stat_time_label,
+                "⏱️ Tempo risparmiato in questa sessione\n\n"
+                "Stima del tempo che avresti impiegato\n"
+                "a creare manualmente i sottotitoli.\n\n"
+                "Calcolo:\n"
+                "• 15 min per sottotitolo generato\n"
+                "• 5 min per sottotitolo scaricato"
+            )
 
             self.stat_memory_label = ttk.Label(
                 status_frame,
@@ -599,6 +781,12 @@ class SubtitleGeneratorGUI:
                 foreground='#7c3aed'
             )
             self.stat_memory_label.pack(side=tk.LEFT, padx=10)
+            create_tooltip(
+                self.stat_memory_label,
+                "💾 Memoria RAM in uso dal sistema\n\n"
+                "Monitoraggio in tempo reale dell'uso\n"
+                "della memoria per evitare problemi."
+            )
 
             # Session duration
             self.stat_session_label = ttk.Label(
@@ -608,6 +796,12 @@ class SubtitleGeneratorGUI:
                 foreground='#64748b'
             )
             self.stat_session_label.pack(side=tk.RIGHT, padx=10)
+            create_tooltip(
+                self.stat_session_label,
+                "🕐 Durata sessione corrente\n\n"
+                "Tempo trascorso dall'apertura\n"
+                "dell'applicazione."
+            )
 
             # Update stats periodically
             self._update_stats_display()
@@ -733,6 +927,29 @@ class SubtitleGeneratorGUI:
         lang_code = self.language.get()
         lang_name = self.controller.config.LANGUAGES.get(lang_code, "")
         self.language_name_label.config(text=lang_name)
+
+    def _update_memory_indicator(self, event=None):
+        """Update memory indicator based on selected model"""
+        try:
+            model = self.whisper_model.get()
+            available_mb = self.controller.memory_manager.get_available_memory()
+            is_available, _, required_mb, _ = self.controller.memory_manager.check_memory_available(model)
+
+            if is_available:
+                self.memory_indicator_label.config(
+                    text=f"✓ RAM OK ({available_mb:.0f} MB / {required_mb} MB richiesti)",
+                    foreground='#16a34a'
+                )
+            else:
+                suggested_model, _ = self.controller.memory_manager.suggest_best_model()
+                self.memory_indicator_label.config(
+                    text=f"⚠️ RAM insufficiente ({available_mb:.0f} MB) - Usa '{suggested_model}'",
+                    foreground='#dc2626'
+                )
+
+        except Exception as e:
+            logger.debug(f"Error updating memory indicator: {str(e)}")
+            self.memory_indicator_label.config(text="", foreground='black')
     
     def _log(self, message):
         """Add message to log and update progress if percentage found"""
@@ -1152,9 +1369,9 @@ class SubtitleGeneratorGUI:
         """Open output folder in file explorer"""
         import os
         import platform
-        
+
         output_dir = self.controller.get_output_directory()
-        
+
         try:
             if platform.system() == 'Windows':
                 os.startfile(output_dir)
@@ -1164,6 +1381,73 @@ class SubtitleGeneratorGUI:
                 os.system(f'xdg-open "{output_dir}"')
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile aprire cartella:\n{str(e)}")
+
+    def _open_folder(self, folder_path):
+        """Open specified folder in file explorer"""
+        import os
+        import platform
+
+        try:
+            # Ensure folder exists
+            folder_path = Path(folder_path)
+            if not folder_path.exists():
+                folder_path.mkdir(parents=True, exist_ok=True)
+
+            if platform.system() == 'Windows':
+                os.startfile(str(folder_path))
+            elif platform.system() == 'Darwin':  # macOS
+                os.system(f'open "{folder_path}"')
+            else:  # Linux
+                os.system(f'xdg-open "{folder_path}"')
+
+            logger.info(f"Opened folder: {folder_path}")
+
+        except Exception as e:
+            logger.error(f"Error opening folder: {str(e)}")
+            messagebox.showerror("Errore", f"Impossibile aprire cartella:\n{str(e)}")
+
+    def _clean_temp_folder(self):
+        """Clean temporary files folder"""
+        if messagebox.askyesno(
+            "Conferma Pulizia",
+            "Vuoi eliminare tutti i file temporanei?\n\n"
+            "Questa operazione è sicura e libera spazio su disco."
+        ):
+            try:
+                temp_dir = self.controller.config.TEMP_DIR
+
+                if temp_dir.exists():
+                    files_deleted = 0
+                    space_freed = 0
+
+                    for file in temp_dir.glob("*"):
+                        if file.is_file():
+                            try:
+                                size = file.stat().st_size
+                                file.unlink()
+                                files_deleted += 1
+                                space_freed += size
+                            except Exception as e:
+                                logger.warning(f"Could not delete {file}: {str(e)}")
+
+                    space_mb = space_freed / (1024 * 1024)
+
+                    messagebox.showinfo(
+                        "Pulizia Completata",
+                        f"✓ File temporanei rimossi!\n\n"
+                        f"File eliminati: {files_deleted}\n"
+                        f"Spazio liberato: {space_mb:.2f} MB"
+                    )
+
+                    logger.info(f"Temp folder cleaned: {files_deleted} files, {space_mb:.2f} MB freed")
+                    self._log(f"✓ Puliti {files_deleted} file temporanei ({space_mb:.1f} MB)")
+
+                else:
+                    messagebox.showinfo("Info", "Cartella temporanea vuota o inesistente")
+
+            except Exception as e:
+                logger.error(f"Error cleaning temp folder: {str(e)}")
+                messagebox.showerror("Errore", f"Impossibile pulire cartella temporanea:\n{str(e)}")
     
     def _show_preferences(self):
         """Show preferences dialog"""
@@ -1695,8 +1979,135 @@ Copyright © 2026
 
 Sviluppato con ❤️
 """
-        
+
         messagebox.showinfo("About", about_text)
+
+    def _open_full_guide(self):
+        """Open full guide PDF or markdown"""
+        guide_path = self.controller.config.BASE_DIR / "GUIDA_RAPIDA.md"
+
+        if guide_path.exists():
+            try:
+                import os
+                import platform
+
+                if platform.system() == 'Windows':
+                    os.startfile(str(guide_path))
+                elif platform.system() == 'Darwin':  # macOS
+                    os.system(f'open "{guide_path}"')
+                else:  # Linux
+                    os.system(f'xdg-open "{guide_path}"')
+
+                logger.info("Opened full guide")
+
+            except Exception as e:
+                logger.error(f"Error opening guide: {str(e)}")
+                messagebox.showerror("Errore", f"Impossibile aprire la guida:\n{str(e)}")
+        else:
+            messagebox.showwarning(
+                "Guida Non Trovata",
+                "Il file GUIDA_RAPIDA.md non è stato trovato.\n\n"
+                "Dovrebbe trovarsi nella cartella principale dell'applicazione."
+            )
+
+    def _show_file_locations(self):
+        """Show detailed file locations info"""
+        locations_window = tk.Toplevel(self.root)
+        locations_window.title("📂 Dove Vanno i File?")
+        locations_window.geometry("700x500")
+        locations_window.transient(self.root)
+
+        # Header
+        ttk.Label(
+            locations_window,
+            text="📂 Posizioni dei File",
+            font=('Arial', 14, 'bold')
+        ).pack(pady=15)
+
+        # Main frame with info
+        info_frame = ttk.Frame(locations_window, padding="20")
+        info_frame.pack(fill=tk.BOTH, expand=True)
+
+        sections = [
+            {
+                "icon": "📝",
+                "title": "Sottotitoli Generati",
+                "path": str(self.controller.config.OUTPUT_DIR),
+                "description": "Tutti i sottotitoli creati vengono salvati qui.\nFormato: nome_video.srt o nome_video.vtt"
+            },
+            {
+                "icon": "🤖",
+                "title": "Modelli AI (Whisper)",
+                "path": str(self.controller.config.MODELS_DIR),
+                "description": "I modelli Whisper vengono scaricati automaticamente\ne salvati qui per uso futuro (non verranno riscaricati)."
+            },
+            {
+                "icon": "🗂️",
+                "title": "File Temporanei",
+                "path": str(self.controller.config.TEMP_DIR),
+                "description": "File audio estratti temporaneamente dai video.\nVengono eliminati automaticamente dopo l'elaborazione."
+            },
+            {
+                "icon": "📦",
+                "title": "Cache Applicazione",
+                "path": str(self.controller.config.CACHE_DIR),
+                "description": "Dati temporanei dell'applicazione.\nPuoi pulirla da: Opzioni → Pulisci Cache"
+            }
+        ]
+
+        for idx, section in enumerate(sections):
+            # Section frame
+            section_frame = ttk.LabelFrame(
+                info_frame,
+                text=f"{section['icon']} {section['title']}",
+                padding="10"
+            )
+            section_frame.pack(fill=tk.X, pady=10)
+
+            # Path label (clickable)
+            path_label = ttk.Label(
+                section_frame,
+                text=section['path'],
+                font=('Arial', 9, 'bold'),
+                foreground='#2563eb',
+                cursor='hand2'
+            )
+            path_label.pack(anchor=tk.W, pady=(0, 5))
+            path_label.bind('<Button-1>', lambda e, p=section['path']: self._open_folder(p))
+
+            # Description
+            ttk.Label(
+                section_frame,
+                text=section['description'],
+                font=('Arial', 8),
+                foreground='#64748b',
+                wraplength=620,
+                justify=tk.LEFT
+            ).pack(anchor=tk.W)
+
+            # Open button
+            ttk.Button(
+                section_frame,
+                text="📂 Apri Cartella",
+                command=lambda p=section['path']: self._open_folder(p),
+                width=15
+            ).pack(anchor=tk.E, pady=(5, 0))
+
+        # Bottom info
+        ttk.Label(
+            info_frame,
+            text="💡 Click sul percorso o sul pulsante per aprire la cartella",
+            font=('Arial', 8, 'italic'),
+            foreground='#7c3aed'
+        ).pack(pady=(15, 0))
+
+        # Close button
+        ttk.Button(
+            locations_window,
+            text="✖ Chiudi",
+            command=locations_window.destroy,
+            width=15
+        ).pack(pady=10)
     
     def _on_closing(self):
         """Handle window closing"""
