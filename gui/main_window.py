@@ -554,10 +554,11 @@ class SubtitleGeneratorGUI:
         )
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # Buttons frame
-        buttons_frame = ttk.Frame(main_frame, height=50)
+        # Buttons frame - FIXED: Removed grid_propagate to allow proper resizing
+        buttons_frame = ttk.Frame(main_frame)
         buttons_frame.grid(row=13, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
-        buttons_frame.grid_propagate(False)  # Prevent frame from shrinking
+        # NOTE: grid_propagate(False) was causing buttons to be invisible!
+        # The frame now auto-sizes to its content properly.
         
         self.start_btn = ttk.Button(
             buttons_frame,
@@ -629,10 +630,11 @@ class SubtitleGeneratorGUI:
             width=15
         ).pack(side=tk.LEFT, padx=5)
         
-        # Second row of buttons
-        buttons_frame2 = ttk.Frame(main_frame, height=45)
+        # Second row of buttons - FIXED: Removed grid_propagate to allow proper resizing
+        buttons_frame2 = ttk.Frame(main_frame)
         buttons_frame2.grid(row=14, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
-        buttons_frame2.grid_propagate(False)  # Prevent frame from shrinking
+        # NOTE: grid_propagate(False) was causing buttons to be invisible!
+        # The frame now auto-sizes to its content properly.
         
         ttk.Button(
             buttons_frame2,
