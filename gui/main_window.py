@@ -47,7 +47,7 @@ class SubtitleGeneratorGUI:
             self.root.geometry(self.controller.config.WINDOW_SIZE)
 
         # Set minimum window size to ensure all controls are visible
-        self.root.minsize(1000, 850)
+        self.root.minsize(1000, 750)  # Reduced from 850 to prevent button hiding on small screens
 
         # Make window resizable
         self.root.resizable(True, True)
@@ -544,10 +544,10 @@ class SubtitleGeneratorGUI:
         log_frame.grid(row=12, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
-        
+
         self.log_text = scrolledtext.ScrolledText(
             log_frame,
-            height=8,
+            height=6,  # Reduced from 8 to leave more space for buttons
             width=80,
             state='disabled',
             wrap=tk.WORD
@@ -555,8 +555,9 @@ class SubtitleGeneratorGUI:
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Buttons frame
-        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame = ttk.Frame(main_frame, height=50)
         buttons_frame.grid(row=13, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
+        buttons_frame.grid_propagate(False)  # Prevent frame from shrinking
         
         self.start_btn = ttk.Button(
             buttons_frame,
@@ -629,8 +630,9 @@ class SubtitleGeneratorGUI:
         ).pack(side=tk.LEFT, padx=5)
         
         # Second row of buttons
-        buttons_frame2 = ttk.Frame(main_frame)
+        buttons_frame2 = ttk.Frame(main_frame, height=45)
         buttons_frame2.grid(row=14, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        buttons_frame2.grid_propagate(False)  # Prevent frame from shrinking
         
         ttk.Button(
             buttons_frame2,
@@ -667,7 +669,9 @@ class SubtitleGeneratorGUI:
         self._create_status_bar(main_frame)
 
         # Configure row weights for resizing
-        main_frame.rowconfigure(12, weight=1)
+        main_frame.rowconfigure(12, weight=1)  # Log frame can expand
+        main_frame.rowconfigure(13, minsize=60, weight=0)  # Buttons row 1 - fixed height
+        main_frame.rowconfigure(14, minsize=50, weight=0)  # Buttons row 2 - fixed height
 
         # Initial mode setup
         self._on_mode_change()
