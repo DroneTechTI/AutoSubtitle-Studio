@@ -3,7 +3,6 @@ Checkpoint manager for saving and resuming long-running operations
 """
 import logging
 import json
-import pickle
 from pathlib import Path
 from datetime import datetime
 
@@ -40,16 +39,9 @@ class CheckpointManager:
                 'metadata': metadata or {}
             }
             
-            # Save as JSON if possible, pickle otherwise
-            try:
-                with open(checkpoint_file, 'w', encoding='utf-8') as f:
-                    json.dump(checkpoint, f, indent=2)
-                logger.info(f"Checkpoint saved (JSON): {checkpoint_file}")
-            except (TypeError, ValueError):
-                # Fall back to pickle for non-JSON-serializable data
-                with open(checkpoint_file, 'wb') as f:
-                    pickle.dump(checkpoint, f)
-                logger.info(f"Checkpoint saved (pickle): {checkpoint_file}")
+            with open(checkpoint_file, 'w', encoding='utf-8') as f:
+                json.dump(checkpoint, f, indent=2, default=str)
+            logger.info(f"Checkpoint saved: {checkpoint_file}")
             
             return checkpoint_file
             
@@ -74,16 +66,9 @@ class CheckpointManager:
                 logger.debug(f"No checkpoint found for: {operation_id}")
                 return None
             
-            # Try JSON first
-            try:
-                with open(checkpoint_file, 'r', encoding='utf-8') as f:
-                    checkpoint = json.load(f)
-                logger.info(f"Checkpoint loaded (JSON): {checkpoint_file}")
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                # Fall back to pickle
-                with open(checkpoint_file, 'rb') as f:
-                    checkpoint = pickle.load(f)
-                logger.info(f"Checkpoint loaded (pickle): {checkpoint_file}")
+            with open(checkpoint_file, 'r', encoding='utf-8') as f:
+                checkpoint = json.load(f)
+            logger.info(f"Checkpoint loaded: {checkpoint_file}")
             
             return checkpoint
             

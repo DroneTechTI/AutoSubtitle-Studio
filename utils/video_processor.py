@@ -205,7 +205,12 @@ class VideoProcessor:
                 info['video_codec'] = video_info.get('codec_name', 'unknown')
                 info['width'] = int(video_info.get('width', 0))
                 info['height'] = int(video_info.get('height', 0))
-                info['fps'] = eval(video_info.get('r_frame_rate', '0/1'))
+                fps_str = video_info.get('r_frame_rate', '0/1')
+                try:
+                    num, den = map(int, fps_str.split('/'))
+                    info['fps'] = round(num / den, 2) if den > 0 else 0.0
+                except (ValueError, ZeroDivisionError):
+                    info['fps'] = 0.0
             
             if audio_info:
                 info['audio_codec'] = audio_info.get('codec_name', 'unknown')

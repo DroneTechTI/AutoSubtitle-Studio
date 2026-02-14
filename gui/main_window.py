@@ -1375,16 +1375,17 @@ class SubtitleGeneratorGUI:
         """Open output folder in file explorer"""
         import os
         import platform
+        import subprocess
 
         output_dir = self.controller.get_output_directory()
 
         try:
             if platform.system() == 'Windows':
                 os.startfile(output_dir)
-            elif platform.system() == 'Darwin':  # macOS
-                os.system(f'open "{output_dir}"')
-            else:  # Linux
-                os.system(f'xdg-open "{output_dir}"')
+            elif platform.system() == 'Darwin':
+                subprocess.Popen(['open', str(output_dir)])
+            else:
+                subprocess.Popen(['xdg-open', str(output_dir)])
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile aprire cartella:\n{str(e)}")
 
@@ -1392,19 +1393,19 @@ class SubtitleGeneratorGUI:
         """Open specified folder in file explorer"""
         import os
         import platform
+        import subprocess
 
         try:
-            # Ensure folder exists
             folder_path = Path(folder_path)
             if not folder_path.exists():
                 folder_path.mkdir(parents=True, exist_ok=True)
 
             if platform.system() == 'Windows':
                 os.startfile(str(folder_path))
-            elif platform.system() == 'Darwin':  # macOS
-                os.system(f'open "{folder_path}"')
-            else:  # Linux
-                os.system(f'xdg-open "{folder_path}"')
+            elif platform.system() == 'Darwin':
+                subprocess.Popen(['open', str(folder_path)])
+            else:
+                subprocess.Popen(['xdg-open', str(folder_path)])
 
             logger.info(f"Opened folder: {folder_path}")
 
